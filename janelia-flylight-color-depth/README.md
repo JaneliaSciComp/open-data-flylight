@@ -20,11 +20,12 @@ https://color-depth-mips.s3.amazonaws.com/JRC2018_Unisex_20x_HR/FlyLight+Split-G
 
 The file names contain metadata as follows:
 ```
-[Line Name]-[Slide Code]-[Gender]-[Objective]-[Area/Tile]-[Alignment Space]-color_depth_[Channel].png
+[Line Name]-[Slide Code]-[Driver]-[Gender]-[Objective]-[Area/Tile]-[Alignment Space]-color_depth_[Channel].png
 ```
 
 * **Line Name**: genetic fly line
 * **Slide Code**: unique identifier for the sample
+* **Driver**: GAL4 or LexA
 * **Gender**: [m]ale or [f]emale
 * **Objective**: microscope objective used to capture the original data
 * **Area/Tile**: brain area (e.g. Brain vs VNC) or tile name
