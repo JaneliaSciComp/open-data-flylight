@@ -16,7 +16,7 @@ The forthcoming *NeuronBridge* tool, built on AWS Lambda, will make this tool av
             * color depth MIPs (PNG)
 
 Example:
-https://color-depth-mips.s3.amazonaws.com/JRC2018_Unisex_20x_HR/FlyLight+Split-GAL4+Drivers/JHS_K_85321-20141222_80_A3-f-20x-brain-JRC2018_Unisex_20x_HR-color_depth_1.png
+https://janelia-flylight-color-depth.s3.amazonaws.com/JRC2018_Unisex_20x_HR/FlyLight+Split-GAL4+Drivers/SS02702-20141222_80_B4-Split_GAL4-f-20x-brain-JRC2018_Unisex_20x_HR-color_depth_1.png
 
 The file names contain metadata as follows:
 ```
@@ -25,7 +25,7 @@ The file names contain metadata as follows:
 
 * **Line Name**: genetic fly line
 * **Slide Code**: unique identifier for the sample
-* **Driver**: GAL4 or LexA
+* **Driver**: GAL4, LexA, or Split_GAL4
 * **Gender**: [m]ale or [f]emale
 * **Objective**: microscope objective used to capture the original data
 * **Area/Tile**: brain area (e.g. Brain vs VNC) or tile name
