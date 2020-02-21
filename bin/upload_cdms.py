@@ -373,6 +373,14 @@ def process_flylight_splitgal4_drivers(sdata, sid, release):
     return True
 
 
+def translate_slide_code(isc, line):
+    if 'sample_BJD' in isc:
+        return isc.replace("BJD", "")
+    elif 'GMR' in isc:
+        return isc.replace(line, get_r_line(line))
+    return isc
+
+
 def process_light(smp, mapping, driver, release):
     ''' Return the file name for a light microscopy sample.
         Keyword arguments:
@@ -416,7 +424,7 @@ def process_light(smp, mapping, driver, release):
     else:
         PNAME[publishing_name] += 1
     REC['line'] = publishing_name
-    REC['slide_code'] = sdata[0]['slideCode']
+    REC['slide_code'] = translate_slide_code(sdata[0]['slideCode'], sdata[0]['line'])
     REC['gender'] = sdata[0]['gender']
     REC['objective'] = smp['objective']
     REC['area'] = smp['anatomicalArea'].lower()
