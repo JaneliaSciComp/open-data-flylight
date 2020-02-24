@@ -13,7 +13,7 @@ The forthcoming *NeuronBridge* tool, built on AWS Lambda, will make this tool av
 * Root
     * `<alignment space>`
         * `<library name>`
-            * color depth MIPs (PNG)
+            * _color depth MIP files (PNG)_
 
 Example:
 https://janelia-flylight-color-depth.s3.amazonaws.com/JRC2018_Unisex_20x_HR/FlyLight+Split-GAL4+Drivers/SS02702-20141222_80_B4-Split_GAL4-f-20x-brain-JRC2018_Unisex_20x_HR-color_depth_1.png
