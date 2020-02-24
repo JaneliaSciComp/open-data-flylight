@@ -27,7 +27,7 @@ Files are organized by release, each of which is linked to a scientific publicat
             * _JSON metadata file_ - metadata about the images, including curated anatomical annotations
             * _unaligned image stack files (H5J)_ - 3d imagery, distortion corrected, merged, and stitched
             * _aligned image stack files (H5J)_ - 3d imagery registered to a canonical template
-            * _MIP files (PNG)_ - maximum intensity projects for rapid viewing
+            * _MIP files (PNG)_ - maximum intensity projections for rapid viewing
             * _movie files (MP4)_ - small movies for rapid viewing of Z slices
 
 ## Related buckets
