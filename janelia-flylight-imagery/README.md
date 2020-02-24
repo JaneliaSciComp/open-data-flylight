@@ -22,13 +22,13 @@ Files are organized by release, each of which is linked to a scientific publicat
 
 * Root
     * `<release name>`
-        * `<json metadata>` - metadata about the release including the associated publication(s)
-        * `<fly line name>`
-            * `<json metadata>` - metadata about the images, including curated anatomical annotations
-            * `<unaligned image stacks (H5J)>` - 3d imagery, distortion corrected, merged, and stitched
-            * `<aligned image stacks (H5J)>` - 3d imagery registered to a canonical template
-            * `<MIPS (PNG)>` - maximum intensity projects for rapid viewing
-            * `<movies (MP4)>` - small movies for rapid viewing of Z slices
+        * `json metadata file` - metadata about the release including the associated publication(s)
+        * `<fly line publishing name>`
+            * `json metadata file` - metadata about the images, including curated anatomical annotations
+            * `unaligned image stack files (H5J)` - 3d imagery, distortion corrected, merged, and stitched
+            * `aligned image stack files (H5J)` - 3d imagery registered to a canonical template
+            * `MIP files (PNG)` - maximum intensity projects for rapid viewing
+            * `movie files (MP4)` - small movies for rapid viewing of Z slices
 
 ## Related buckets
 
