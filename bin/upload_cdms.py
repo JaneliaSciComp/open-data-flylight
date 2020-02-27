@@ -411,6 +411,7 @@ def process_light(smp, mapping, driver, release):
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
         if ARG.WRITE:
+            return False
             sys.exit(-1)
         return False
     if not publishing_name:
