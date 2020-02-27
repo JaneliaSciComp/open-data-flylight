@@ -31,8 +31,8 @@ FlyLight file names contain metadata as follows:
 * **Channel**: number of the channel from the aligned image stack that is represented by this MIP
 
 Examples:
-* **FlyLight Gen1 GAL4**: R16E08-20111230_R16E08_32-mA01b_20111230103554390-GAL4-m-20x-brain-JRC2018_Unisex_20x_HR-color_depth_1.png
-* **FlyLight Gen1 LexA**: R80G01-20110719_R80G01_02-fA01b_20110720114726843-LexA-f-20x-brain-JRC2018_Unisex_20x_HR-color_depth_1.png
+* **FlyLight Gen1 GAL4**: R16E08-20111230_32_mA01b_20111230103554390-GAL4-m-20x-brain-JRC2018_Unisex_20x_HR-color_depth_1.png
+* **FlyLight Gen1 LexA**: R80G01-20110719_02_fA01b_20110720114726843-LexA-f-20x-brain-JRC2018_Unisex_20x_HR-color_depth_1.png
 * **FlyLight Gen1 MCFO**: VT014706-20180221_62_I1-GAL4-f-40x-brain-JRC2018_Unisex_20x_HR-color_depth_3.png
 * **FlyLight Split-GAL4 Drivers**: SS02702-20141222_80_B4-Split_GAL4-f-20x-brain-JRC2018_Unisex_20x_HR-color_depth_1.png
 * **Vienna Gen1 GAL4**: VT061925-sample_004038-GAL4-f-20x-brain-JRC2018_Unisex_20x_HR-color_depth_1.png
