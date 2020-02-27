@@ -446,7 +446,7 @@ def process_light(smp, mapping, driver, release):
     if chan not in ['1', '2', '3', '4']:
         LOGGER.critical("Could not find channel for %s", fname)
         sys.exit(-1)
-    newname = '%s-%s-%s-%s-%s-%s-%s-color_depth_%s.png' \
+    newname = '%s-%s-%s-%s-%s-%s-%s-CDM_%s.png' \
         % (REC['line'], REC['slide_code'], drv, REC['gender'],
            REC['objective'], REC['area'], REC['alignment_space'], chan)
     return newname
