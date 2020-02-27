@@ -124,7 +124,7 @@ def initialize_program():
     data = call_responder('config', 'config/db_config')
     manifold = 'prod'
     if ARG.LIBRARY == 'flylight_splitgal4_drivers':
-        manifold = 'dev'
+        manifold = 'staging'
     (CONN[DATABASE], CURSOR[DATABASE]) = db_connect(data['config'][DATABASE][manifold])
     if DATABASE != 'sage':
         (CONN['sage'], CURSOR['sage']) = db_connect(data['config']['sage']['prod'])
@@ -237,6 +237,8 @@ def publishing_name_mapping():
             sql_error(err)
         for row in rows:
             if not row[lkey]:
+                #row[lkey] = row[mapcol]
+                print(row)
                 LOGGER.error("Missing original line for %s", row[mapcol])
                 sys.exit(-1)
             if 'FLEW' in row['published_to']:
