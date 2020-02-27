@@ -345,7 +345,7 @@ def process_hemibrain(smp):
           New file name
     '''
     bodyid, status = smp['name'].split('_')[0:2]
-    newname = '%s-%s-%s-color_depth.png' \
+    newname = '%s-%s-%s-CDM.png' \
     % (bodyid, status, REC['alignment_space'])
     smp['filepath'] = convert_file(smp['filepath'], newname)
     return newname
@@ -377,7 +377,9 @@ def translate_slide_code(isc, line):
     if 'sample_BJD' in isc:
         return isc.replace("BJD", "")
     elif 'GMR' in isc:
-        return isc.replace(line, get_r_line(line))
+        new = isc.replace(line + "_", "")
+        new =new.replace("-", "_")
+        return new
     return isc
 
 
