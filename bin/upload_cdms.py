@@ -148,6 +148,7 @@ def upload_aws(dirpath, fname, newname):
         Keyword arguments:
           dirpath: source directory
           fname: file name
+          newname: new file name
         Returns:
           url
     '''
@@ -429,7 +430,8 @@ def process_light(smp, mapping, driver, release):
     else:
         PNAME[publishing_name] += 1
     REC['line'] = publishing_name
-    REC['slide_code'] = translate_slide_code(sdata[0]['slideCode'], sdata[0]['line'])
+    #REC['slide_code'] = translate_slide_code(sdata[0]['slideCode'], sdata[0]['line'])
+    REC['slide_code'] = sdata[0]['slideCode']
     REC['gender'] = sdata[0]['gender']
     REC['objective'] = smp['objective']
     REC['area'] = smp['anatomicalArea'].lower()
