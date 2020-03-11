@@ -33,6 +33,7 @@ COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consens
          'Skipped': 0, 'Already present': 0}
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
+S3_CLIENT = S3_RESOURCE = ''
 
 
 def call_responder(server, endpoint, payload='', authenticate=False):
@@ -116,7 +117,7 @@ def decode_token(token):
 def initialize_program():
     """ Initialize
     """
-    global CLOAD, CONFIG, LIBRARY # pylint: disable=W0603
+    global CLOAD, CONFIG, LIBRARY, S3_CLIENT, S3_RESOURCE # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
     data = call_responder('config', 'config/advanced_crossloader')
@@ -141,6 +142,18 @@ def initialize_program():
         LOGGER.critical("Your token is expired")
         sys.exit(-1)
     LOGGER.info("Authenticated as %s", response['full_name'])
+    sts_client = boto3.client('sts')
+    aro = sts_client.assume_role(RoleArn="arn:aws:iam::675037355837:role/FlyLightPDSAdmin",
+                                 RoleSessionName="AssumeRoleSession1")
+    credentials = aro['Credentials']
+    S3_CLIENT = boto3.client('s3',
+                             aws_access_key_id=credentials['AccessKeyId'],
+                             aws_secret_access_key=credentials['SecretAccessKey'],
+                             aws_session_token=credentials['SessionToken'])
+    S3_RESOURCE = boto3.resource('s3',
+                                 aws_access_key_id=credentials['AccessKeyId'],
+                                 aws_secret_access_key=credentials['SecretAccessKey'],
+                                 aws_session_token=credentials['SessionToken'])
 
 
 def upload_aws(dirpath, fname, newname):
@@ -155,7 +168,7 @@ def upload_aws(dirpath, fname, newname):
     COUNT['Files to upload'] += 1
     complete_fpath = '/'.join([dirpath, fname])
     bucket = CLOAD['aws_bucket']['cdm']
-    library = LIBRARY[ARG.LIBRARY]
+    library = LIBRARY[ARG.LIBRARY].replace(' ', '_')
     if ARG.LIBRARY in VERSION_REQUIRED:
         library += ' v' + ARG.VERSION
     object_name = '/'.join([REC['alignment_space'], library, newname])
@@ -166,18 +179,16 @@ def upload_aws(dirpath, fname, newname):
         LOGGER.info(newname)
         COUNT['Amazon S3 uploads'] += 1
         return url
-    s3_client = boto3.client('s3')
-    s3_resource = boto3.resource('s3')
     mimetype = 'image/png'
     try:
-        s3_client.upload_file(complete_fpath, bucket,
+        S3_CLIENT.upload_file(complete_fpath, bucket,
                               object_name)
-        obj = s3_resource.Object(bucket, object_name)
+        obj = S3_RESOURCE.Object(bucket, object_name)
         obj.copy_from(CopySource={'Bucket': bucket,
                                   'Key': object_name},
                       MetadataDirective="REPLACE",
                       ContentType=mimetype)
-        object_acl = s3_resource.ObjectAcl(bucket, object_name)
+        object_acl = S3_RESOURCE.ObjectAcl(bucket, object_name)
         object_acl.put(ACL='public-read')
     except ClientError as err:
         LOGGER.critical(err)
@@ -376,12 +387,19 @@ def process_flylight_splitgal4_drivers(sdata, sid, release):
     return True
 
 
-def translate_slide_code(isc, line):
+def translate_slide_code(isc, line0):
+    ''' Translate a slide code to remove initials.
+        Keyword arguments:
+          isc: initial slide doce
+          line0: line
+        Returns:
+          New slide code
+    '''
     if 'sample_BJD' in isc:
         return isc.replace("BJD", "")
-    elif 'GMR' in isc:
-        new = isc.replace(line + "_", "")
-        new =new.replace("-", "_")
+    if 'GMR' in isc:
+        new = isc.replace(line0 + "_", "")
+        new = new.replace("-", "_")
         return new
     return isc
 
