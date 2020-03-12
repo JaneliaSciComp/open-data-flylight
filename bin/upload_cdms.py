@@ -17,7 +17,7 @@ from PIL import Image
 
 # Configuration
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
-CLOAD = dict()
+AWS = dict()
 LIBRARY = dict()
 DATABASE = 'sage'
 CONN = dict()
@@ -117,11 +117,11 @@ def decode_token(token):
 def initialize_program():
     """ Initialize
     """
-    global CLOAD, CONFIG, LIBRARY, S3_CLIENT, S3_RESOURCE # pylint: disable=W0603
+    global AWS, CONFIG, LIBRARY, S3_CLIENT, S3_RESOURCE # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
-    data = call_responder('config', 'config/advanced_crossloader')
-    CLOAD = data['config']
+    data = call_responder('config', 'config/aws')
+    AWS = data['config']
     data = call_responder('config', 'config/db_config')
     manifold = 'prod'
     if ARG.LIBRARY == 'flylight_splitgal4_drivers':
@@ -142,18 +142,22 @@ def initialize_program():
         LOGGER.critical("Your token is expired")
         sys.exit(-1)
     LOGGER.info("Authenticated as %s", response['full_name'])
-    sts_client = boto3.client('sts')
-    aro = sts_client.assume_role(RoleArn="arn:aws:iam::675037355837:role/FlyLightPDSAdmin",
-                                 RoleSessionName="AssumeRoleSession1")
-    credentials = aro['Credentials']
-    S3_CLIENT = boto3.client('s3',
-                             aws_access_key_id=credentials['AccessKeyId'],
-                             aws_secret_access_key=credentials['SecretAccessKey'],
-                             aws_session_token=credentials['SessionToken'])
-    S3_RESOURCE = boto3.resource('s3',
+    if ARG.MANIFOLD == 'dev':
+        S3_CLIENT = boto3.client('s3')
+        S3_RESOURCE = boto3.resource('s3')
+    else:
+        sts_client = boto3.client('sts')
+        aro = sts_client.assume_role(RoleArn=AWS['role_arn'],
+                                     RoleSessionName="AssumeRoleSession1")
+        credentials = aro['Credentials']
+        S3_CLIENT = boto3.client('s3',
                                  aws_access_key_id=credentials['AccessKeyId'],
                                  aws_secret_access_key=credentials['SecretAccessKey'],
                                  aws_session_token=credentials['SessionToken'])
+        S3_RESOURCE = boto3.resource('s3',
+                                     aws_access_key_id=credentials['AccessKeyId'],
+                                     aws_secret_access_key=credentials['SecretAccessKey'],
+                                     aws_session_token=credentials['SessionToken'])
 
 
 def upload_aws(dirpath, fname, newname):
@@ -167,29 +171,35 @@ def upload_aws(dirpath, fname, newname):
     '''
     COUNT['Files to upload'] += 1
     complete_fpath = '/'.join([dirpath, fname])
-    bucket = CLOAD['aws_bucket']['cdm']
+    bucket = AWS['s3_bucket']['cdm']
+    if ARG.MANIFOLD != 'prod':
+        bucket += '-' + ARG.MANIFOLD
     library = LIBRARY[ARG.LIBRARY].replace(' ', '_')
     if ARG.LIBRARY in VERSION_REQUIRED:
         library += ' v' + ARG.VERSION
     object_name = '/'.join([REC['alignment_space'], library, newname])
     LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
-    url = '/'.join([CLOAD['base_aws_url'], bucket, object_name])
+    url = '/'.join([AWS['base_aws_url'], bucket, object_name])
     url = url.replace(' ', '+')
     if not ARG.WRITE:
         LOGGER.info(newname)
         COUNT['Amazon S3 uploads'] += 1
         return url
     mimetype = 'image/png'
+    tags = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
+           + 'VERSION=1.0.0'
     try:
         S3_CLIENT.upload_file(complete_fpath, bucket,
-                              object_name)
-        obj = S3_RESOURCE.Object(bucket, object_name)
-        obj.copy_from(CopySource={'Bucket': bucket,
-                                  'Key': object_name},
-                      MetadataDirective="REPLACE",
-                      ContentType=mimetype)
-        object_acl = S3_RESOURCE.ObjectAcl(bucket, object_name)
-        object_acl.put(ACL='public-read')
+                              object_name,
+                              ExtraArgs={'ContentType': mimetype, 'ACL': 'public-read',
+                                         'Tagging': tags})
+        #obj = S3_RESOURCE.Object(bucket, object_name)
+        #obj.copy_from(CopySource={'Bucket': bucket,
+        #                          'Key': object_name},
+        #              MetadataDirective="REPLACE",
+        #              ContentType=mimetype)
+        #object_acl = S3_RESOURCE.ObjectAcl(bucket, object_name)
+        #object_acl.put(ACL='public-read')
     except ClientError as err:
         LOGGER.critical(err)
         return False
@@ -440,8 +450,8 @@ def process_light(smp, mapping, driver, release):
         err_text = "No publishing name for sample %s (%s)" % (sid, sdata[0]['line'])
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
-        if ARG.WRITE:
-            sys.exit(-1)
+        #if ARG.WRITE: PLUG
+        #    sys.exit(-1)
         return False
     if publishing_name not in PNAME:
         PNAME[publishing_name] = 1
@@ -507,7 +517,7 @@ def upload_cdms():
         url = upload_aws(dirpath, fname, newname)
         if url:
             turl = url.replace('.png', '.jpg')
-            turl = turl.replace(CLOAD['aws_bucket']['cdm'], CLOAD['aws_bucket']['cdm-thumbnail'])
+            turl = turl.replace(AWS['s3_bucket']['cdm'], AWS['s3_bucket']['cdm-thumbnail'])
             if ARG.WRITE:
                 if ARG.LIBRARY in CONVERSION_REQUIRED:
                     os.remove(smp['filepath'])
@@ -516,6 +526,8 @@ def upload_cdms():
                        "publicThumbnailUrl": turl}
                 call_responder('jacsv2', 'colorDepthMIPs/' + smp['_id'] \
                                + '/publicURLs', pay, True)
+            else:
+                LOGGER.info(url)
         else:
             LOGGER.error("Could not transfer %s", fname)
 
@@ -530,6 +542,8 @@ if __name__ == '__main__':
     PARSER.add_argument('--rewrite', dest='REWRITE', action='store_true',
                         default=False,
                         help='Flag, Update image in AWS and on JACS')
+    PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
+                        default='prod', help='S3 manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False,
                         help='Flag, Actually write to AWS/JACS')
