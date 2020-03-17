@@ -1,5 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
+__version__ = '1.0.0'
 
 import argparse
 import os
@@ -189,7 +190,7 @@ def upload_aws(bucket, dirpath, fname, newname):
         return url
     mimetype = 'image/png' if '.png' in newname else 'image/jpeg'
     tags = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
-           + 'VERSION=1.0.0'
+           + 'VERSION=' + __version__
     try:
         S3_CLIENT.upload_file(complete_fpath, bucket,
                               object_name,
@@ -445,7 +446,6 @@ def process_light(smp, mapping, driver, release):
         ERR.write(err_text + "\n")
         if ARG.WRITE:
             return False
-            sys.exit(-1)
     if not publishing_name:
         COUNT['No publishing name'] += 1
         err_text = "No publishing name for sample %s (%s)" % (sid, sdata[0]['line'])
@@ -487,6 +487,12 @@ def process_light(smp, mapping, driver, release):
 
 
 def calculate_size(dim):
+    ''' Return the fnew dimensions for an image. The longest side will be scaled down to MAX_SIZE.
+        Keyword arguments:
+          dim: tuple with (X,Y) dimensions
+        Returns:
+          Tuple with new (X,Y) dimensions
+    '''
     xdim, ydim = list(dim)
     if xdim <= MAX_SIZE and ydim <= MAX_SIZE:
         return dim
@@ -500,6 +506,13 @@ def calculate_size(dim):
 
 
 def resize_image(image_path, resized_path):
+    ''' Read in an image, resize it, and write a copy.
+        Keyword arguments:
+          image_path: CDM image path
+          resized_path: path for resized image
+        Returns:
+          None
+    '''
     with Image.open(image_path) as image:
         new_size = calculate_size(image.size)
         image.thumbnail(new_size)
