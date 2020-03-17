@@ -34,6 +34,8 @@ COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consens
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 S3_CLIENT = S3_RESOURCE = ''
+MAX_SIZE = 500
+CREATE_THUMBNAIL = False
 
 
 def call_responder(server, endpoint, payload='', authenticate=False):
@@ -160,9 +162,10 @@ def initialize_program():
                                      aws_session_token=credentials['SessionToken'])
 
 
-def upload_aws(dirpath, fname, newname):
+def upload_aws(bucket, dirpath, fname, newname):
     ''' Transfer a file to Amazon S3
         Keyword arguments:
+          bucket: S3 bucket
           dirpath: source directory
           fname: file name
           newname: new file name
@@ -171,7 +174,6 @@ def upload_aws(dirpath, fname, newname):
     '''
     COUNT['Files to upload'] += 1
     complete_fpath = '/'.join([dirpath, fname])
-    bucket = AWS['s3_bucket']['cdm']
     if ARG.MANIFOLD != 'prod':
         bucket += '-' + ARG.MANIFOLD
     library = LIBRARY[ARG.LIBRARY].replace(' ', '_')
@@ -185,7 +187,7 @@ def upload_aws(dirpath, fname, newname):
         LOGGER.info(newname)
         COUNT['Amazon S3 uploads'] += 1
         return url
-    mimetype = 'image/png'
+    mimetype = 'image/png' if '.png' in newname else 'image/jpeg'
     tags = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
            + 'VERSION=1.0.0'
     try:
@@ -444,7 +446,6 @@ def process_light(smp, mapping, driver, release):
         if ARG.WRITE:
             return False
             sys.exit(-1)
-        return False
     if not publishing_name:
         COUNT['No publishing name'] += 1
         err_text = "No publishing name for sample %s (%s)" % (sid, sdata[0]['line'])
@@ -485,6 +486,44 @@ def process_light(smp, mapping, driver, release):
     return newname
 
 
+def calculate_size(dim):
+    xdim, ydim = list(dim)
+    if xdim <= MAX_SIZE and ydim <= MAX_SIZE:
+        return dim
+    if xdim > ydim:
+        ratio = xdim / MAX_SIZE
+        xdim, ydim = [MAX_SIZE, int(ydim/ratio)]
+    else:
+        ratio = ydim / MAX_SIZE
+        xdim, ydim = [int(xdim/ratio), MAX_SIZE]
+    return tuple((xdim, ydim))
+
+
+def resize_image(image_path, resized_path):
+    with Image.open(image_path) as image:
+        new_size = calculate_size(image.size)
+        image.thumbnail(new_size)
+        image.save(resized_path, 'JPEG')
+
+
+def produce_thumbnail(dirpath, fname, newname, url):
+    ''' Transfer a file to Amazon S3
+        Keyword arguments:
+          dirpath: source directory
+          fname: file name
+        Returns:
+          thumbnail url
+    '''
+    turl = url.replace('.png', '.jpg')
+    turl = turl.replace(AWS['s3_bucket']['cdm'], AWS['s3_bucket']['cdm-thumbnail'])
+    if CREATE_THUMBNAIL:
+        tname = newname.replace('.png', '.jpg')
+        complete_fpath = '/'.join([dirpath, fname])
+        resize_image(complete_fpath, '/tmp/' + tname)
+        turl = upload_aws(AWS['s3_bucket']['cdm-thumbnail'], '/tmp', tname, tname)
+    return turl
+
+
 def upload_cdms():
     ''' Upload color depth MIPs to AWS S3
         Keyword arguments:
@@ -514,10 +553,9 @@ def upload_cdms():
                 continue
         dirpath = os.path.dirname(smp['filepath'])
         fname = os.path.basename(smp['filepath'])
-        url = upload_aws(dirpath, fname, newname)
+        url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
         if url:
-            turl = url.replace('.png', '.jpg')
-            turl = turl.replace(AWS['s3_bucket']['cdm'], AWS['s3_bucket']['cdm-thumbnail'])
+            turl = produce_thumbnail(dirpath, fname, newname, url)
             if ARG.WRITE:
                 if ARG.LIBRARY in CONVERSION_REQUIRED:
                     os.remove(smp['filepath'])
