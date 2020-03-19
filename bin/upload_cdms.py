@@ -31,7 +31,7 @@ VERSION_REQUIRED = ['flyem_hemibrain']
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'No release': 0,
-         'Skipped': 0, 'Already present': 0}
+         'Skipped': 0, 'Already present': 0, 'Bad driver': 0}
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 S3_CLIENT = S3_RESOURCE = ''
@@ -464,6 +464,15 @@ def process_light(smp, mapping, driver, release):
     REC['gender'] = sdata[0]['gender']
     REC['objective'] = smp['objective']
     REC['area'] = smp['anatomicalArea'].lower()
+    if ('_L' in sdata[0]['line'] and ARG.LIBRARY == 'flylight_gen1_gal4') \
+       or ('_L' not in sdata[0]['line'] and ARG.LIBRARY == 'flylight_gen1_lexa'):
+        COUNT['Bad driver'] += 1
+        err_text = "Bad driver for sample %s (%s)" % (sid, sdata[0]['line'])
+        LOGGER.error(err_text)
+        ERR.write(err_text + "\n")
+        if ARG.WRITE:
+            sys.exit(-1)
+        return False
     if sdata[0]['line'] in driver:
         drv = driver[sdata[0]['line']]
     else:
