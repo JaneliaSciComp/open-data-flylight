@@ -446,6 +446,11 @@ def process_light(smp, mapping, driver, release):
     sid = (smp['sampleRef'].split('#'))[-1]
     LOGGER.info(sid)
     sdata = call_responder('jacs', 'data/sample?sampleId=' + sid)
+    if sdata[0]['line'] in ['GMR_68A07_AE_01', 'GMR_35D04_LJ_01']:
+        err_text = "Skipped bad line %s (%s)" % (smp['_id'], smp['name'])
+        LOGGER.warning(err_text)
+        ERR.write(err_text + "\n")
+        return False
     if not process_flylight_splitgal4_drivers(sdata, sid, release):
         return False
     if sdata[0]['line'] == 'No Consensus':
