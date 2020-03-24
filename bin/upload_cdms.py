@@ -448,7 +448,6 @@ def process_light(smp, mapping, driver, release):
     sdata = call_responder('jacs', 'data/sample?sampleId=' + sid)
     if not process_flylight_splitgal4_drivers(sdata, sid, release):
         return False
-    publishing_name = get_publishing_name(sdata, mapping)
     if sdata[0]['line'] == 'No Consensus':
         COUNT['No Consensus'] += 1
         err_text = "No consensus line for sample %s (%s)" % (sid, sdata[0]['line'])
@@ -456,6 +455,7 @@ def process_light(smp, mapping, driver, release):
         ERR.write(err_text + "\n")
         if ARG.WRITE:
             return False
+    publishing_name = get_publishing_name(sdata, mapping)
     if publishing_name == 'No Consensus':
         COUNT['No Consensus'] += 1
         err_text = "No consensus line for sample %s (%s)" % (sid, sdata[0]['line'])
