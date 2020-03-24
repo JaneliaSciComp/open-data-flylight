@@ -31,7 +31,7 @@ VERSION_REQUIRED = ['flyem_hemibrain']
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'No release': 0,
-         'Skipped': 0, 'Already present': 0, 'Bad driver': 0}
+         'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0}
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 S3_CLIENT = S3_RESOURCE = ''
@@ -189,7 +189,7 @@ def upload_aws(bucket, dirpath, fname, newname):
         bucket += '-' + ARG.MANIFOLD
     library = LIBRARY[ARG.LIBRARY].replace(' ', '_')
     if ARG.LIBRARY in VERSION_REQUIRED:
-        library += ' v' + ARG.VERSION
+        library += '_v' + ARG.VERSION
     object_name = '/'.join([REC['alignment_space'], library, newname])
     LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
     url = '/'.join([AWS['base_aws_url'], bucket, object_name])
@@ -572,8 +572,15 @@ def upload_cdms():
             break
         COUNT['Samples'] += 1
         if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
-            COUNT['Already present'] += 1
+            COUNT['Already on JACS'] += 1
             continue
+        if ARG.CHECK:
+            thumb = smp['publicThumbnailUrl']
+            request = requests.get(thumb)
+            if request.status_code == 200: 
+                COUNT['Already on S3'] += 1
+                #LOGGER.warning("%s is already on AWS S3", smp['publicThumbnailUrl'])
+                continue
         REC['alignment_space'] = smp['alignmentSpace']
         if ARG.LIBRARY == 'flyem_hemibrain':
             newname = process_hemibrain(smp)
@@ -612,6 +619,9 @@ if __name__ == '__main__':
     PARSER.add_argument('--rewrite', dest='REWRITE', action='store_true',
                         default=False,
                         help='Flag, Update image in AWS and on JACS')
+    PARSER.add_argument('--check', dest='CHECK', action='store_true',
+                        default=False,
+                        help='Flag, Check for previous AWS upload')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', help='S3 manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
