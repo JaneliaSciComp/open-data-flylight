@@ -37,7 +37,7 @@ REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 S3_CLIENT = S3_RESOURCE = ''
 MAX_SIZE = 500
 CREATE_THUMBNAIL = False
-S3_SECONDS = 60 * 60 * 4
+S3_SECONDS = 60 * 60 * 12
 
 
 def call_responder(server, endpoint, payload='', authenticate=False):
@@ -449,6 +449,13 @@ def process_light(smp, mapping, driver, release):
     if not process_flylight_splitgal4_drivers(sdata, sid, release):
         return False
     publishing_name = get_publishing_name(sdata, mapping)
+    if sdata[0]['line'] == 'No Consensus':
+        COUNT['No Consensus'] += 1
+        err_text = "No consensus line for sample %s (%s)" % (sid, sdata[0]['line'])
+        LOGGER.error(err_text)
+        ERR.write(err_text + "\n")
+        if ARG.WRITE:
+            return False
     if publishing_name == 'No Consensus':
         COUNT['No Consensus'] += 1
         err_text = "No consensus line for sample %s (%s)" % (sid, sdata[0]['line'])
@@ -566,7 +573,7 @@ def upload_cdms():
     mapping, driver, release = get_line_mapping()
     samples = call_responder('jacsv2', 'colorDepthMIPs?libraryName=' + ARG.LIBRARY \
                              + '&alignmentSpace=' + CDM_ALIGNMENT_SPACE, '', True)
-    LOGGER.info("Samples for %s: %d", ARG.LIBRARY, len(samples))
+    print("Samples for %s: %d" % (ARG.LIBRARY, len(samples)))
     for smp in samples:
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
