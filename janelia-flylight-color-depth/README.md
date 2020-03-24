@@ -2,7 +2,13 @@
 
 Part of the [Janelia FlyLight Imagery](https://open.quiltdata.com/b/janelia-flylight-imagery) open data set.
 
-This bucket contains Color Depth MIPs for all the published FlyLight and [https://www.janelia.org/project-team/flyem](FlyEM) imagery.
+This bucket contains Color Depth MIPs for all the published FlyLight and [https://www.janelia.org/project-team/flyem](FlyEM) imagery, divided into libraries:
+| Library              | # images |
+|----------------------|----------|
+| FlyEM_Hemibrain_v1.0 | 34717    |
+| FlyLight_Gen1_LexA   | 5025     |
+| Vienna_Gen1_GAL4     | 3588     |
+| Vienna_Gen1_LexA     | 2343     |
 
 The color depth mask search technique, published in Otsuna, et. al[^otsuna], enables rapid and scalable 2d mask search across many terabytes of 3d data. Most importantly, it can be used to search from LM to EM and vice-versa, enabling cross-modal correspondence. 
 
