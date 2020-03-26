@@ -199,7 +199,7 @@ def upload_aws(bucket, dirpath, fname, newname):
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
         COUNT['Duplicate objects'] += 1
-    return False
+        return False
     UPLOADED_NAME[object_name] = complete_fpath
     url = '/'.join([AWS['base_aws_url'], bucket, object_name])
     url = url.replace(' ', '+')
