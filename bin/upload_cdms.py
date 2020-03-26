@@ -31,7 +31,8 @@ VERSION_REQUIRED = ['flyem_hemibrain']
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'No release': 0,
-         'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0}
+         'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
+         'Duplicate objects': 0}
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 S3_CLIENT = S3_RESOURCE = ''
@@ -194,7 +195,11 @@ def upload_aws(bucket, dirpath, fname, newname):
     object_name = '/'.join([REC['alignment_space'], library, newname])
     LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
     if object_name in UPLOADED_NAME:
-        LOGGER.error("%s was already uploaded from %s, but is now being uploaded from %s", object_name, UPLOADED_NAME[object_name], complete_fpath)
+        err_text = "%s was already uploaded from %s, but is now being uploaded from %s" % (object_name, UPLOADED_NAME[object_name], complete_fpath)
+        LOGGER.error(err_text)
+        ERR.write(err_text + "\n")
+        COUNT['Duplicate objects'] += 1
+    return False
     UPLOADED_NAME[object_name] = complete_fpath
     url = '/'.join([AWS['base_aws_url'], bucket, object_name])
     url = url.replace(' ', '+')
@@ -622,7 +627,7 @@ def upload_cdms():
             else:
                 LOGGER.info(url)
         else:
-            LOGGER.error("Could not transfer %s", fname)
+            LOGGER.error("Did not transfer %s", fname)
 
 
 if __name__ == '__main__':
