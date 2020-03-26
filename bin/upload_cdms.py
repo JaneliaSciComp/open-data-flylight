@@ -345,6 +345,8 @@ def get_publishing_name(sdata, mapping):
     if len(sdata) > 1:
         LOGGER.critical("More than one sample found")
         sys.exit(-1)
+    if sdata[0]['line'] == 'No Consensus':
+        return sdata[0]['line']
     if sdata[0]['line'] not in sdata[0]['name']:
         LOGGER.critical("Line %s not present in name %s", sdata[0]['line'], sdata[0]['name'])
         sys.exit(-1)
