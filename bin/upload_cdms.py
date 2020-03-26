@@ -670,21 +670,16 @@ if __name__ == '__main__':
     LOGGER.addHandler(HANDLER)
 
     ERR_FILE = 'upload_cdms_errors_%s.txt' % (strftime("%Y%m%dT%H%M%S"))
-    LINE_FILE = 'upload_cdms_lines_%s.txt' % (strftime("%Y%m%dT%H%M%S"))
     ERR = open(ERR_FILE, 'w')
-    LINE = open(LINE_FILE, 'w')
 
     if ARG.LIBRARY == 'flylight_splitgal4_drivers':
         DATABASE = 'mbew'
     initialize_program()
     upload_cdms()
     ERR.close()
-    for line in sorted(PNAME):
-        LINE.write("%s\t%d\n" % (line, PNAME[line]))
     for key in sorted(COUNT):
         print("%-20s %d" % (key + ':', COUNT[key]))
-    LINE.close()
-    for fpath in [ERR_FILE, LINE_FILE]:
+    for fpath in [ERR_FILE]:
         if not os.path.getsize(fpath):
             os.remove(fpath)
     sys.exit(0)
