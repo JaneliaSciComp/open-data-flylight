@@ -38,6 +38,7 @@ S3_CLIENT = S3_RESOURCE = ''
 MAX_SIZE = 500
 CREATE_THUMBNAIL = False
 S3_SECONDS = 60 * 60 * 12
+UPLOADED_NAME = dict()
 
 
 def call_responder(server, endpoint, payload='', authenticate=False):
@@ -192,6 +193,9 @@ def upload_aws(bucket, dirpath, fname, newname):
         library += '_v' + ARG.VERSION
     object_name = '/'.join([REC['alignment_space'], library, newname])
     LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
+    if object_name in UPLOADED_NAME:
+        LOGGER.error("%s was already uploaded from %s, but is now being uploaded from %s", object_name, UPLOADED_NAME[object_name], complete_fpath)
+    UPLOADED_NAME[object_name] = complete_fpath
     url = '/'.join([AWS['base_aws_url'], bucket, object_name])
     url = url.replace(' ', '+')
     if not ARG.WRITE:
@@ -492,8 +496,8 @@ def process_light(smp, mapping, driver, release):
         err_text = "Bad driver for sample %s (%s)" % (sid, sdata[0]['line'])
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
-        if ARG.WRITE:
-            sys.exit(-1)
+        #if ARG.WRITE:
+        #    sys.exit(-1)
         return False
     if sdata[0]['line'] in driver:
         drv = driver[sdata[0]['line']]
