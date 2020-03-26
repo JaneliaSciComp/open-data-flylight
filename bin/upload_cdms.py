@@ -626,7 +626,7 @@ def upload_cdms():
                                + '/publicURLs', pay, True)
             else:
                 LOGGER.info(url)
-        else:
+        elif ARG.WRITE:
             LOGGER.error("Did not transfer %s", fname)
 
 
