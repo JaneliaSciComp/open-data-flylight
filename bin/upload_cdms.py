@@ -457,6 +457,8 @@ def process_light(smp, mapping, driver, release):
     sid = (smp['sampleRef'].split('#'))[-1]
     LOGGER.info(sid)
     sdata = call_responder('jacs', 'data/sample?sampleId=' + sid)
+    if sdata[0]['line'] not in ['GMR_42B05_AE_01', 'GMR_41G11_AE_01']: #PLUG
+        return False
     if sdata[0]['line'] in ['GMR_68A07_AE_01', 'GMR_35D04_LJ_01']:
         err_text = "Skipped bad line %s (%s)" % (smp['_id'], smp['name'])
         LOGGER.warning(err_text)
@@ -491,6 +493,7 @@ def process_light(smp, mapping, driver, release):
         PNAME[publishing_name] = 1
     else:
         PNAME[publishing_name] += 1
+    print(sdata[0]['line'], publishing_name, smp['_id']) #PLUG
     REC['line'] = publishing_name
     #REC['slide_code'] = translate_slide_code(sdata[0]['slideCode'], sdata[0]['line'])
     REC['slide_code'] = sdata[0]['slideCode']
