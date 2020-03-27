@@ -493,7 +493,7 @@ def process_light(smp, mapping, driver, release):
         PNAME[publishing_name] = 1
     else:
         PNAME[publishing_name] += 1
-    print(sdata[0]['line'], publishing_name, smp['_id']) #PLUG
+    print(sdata[0]['line'], publishing_name, smp['_id'], smp['filepath']) #PLUG
     REC['line'] = publishing_name
     #REC['slide_code'] = translate_slide_code(sdata[0]['slideCode'], sdata[0]['line'])
     REC['slide_code'] = sdata[0]['slideCode']
