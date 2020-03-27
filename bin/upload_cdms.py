@@ -455,7 +455,7 @@ def process_light(smp, mapping, driver, release):
         ERR.write(err_text + "\n")
         return False
     sid = (smp['sampleRef'].split('#'))[-1]
-    LOGGER.info(sid)
+    #LOGGER.info(sid)
     sdata = call_responder('jacs', 'data/sample?sampleId=' + sid)
     if sdata[0]['line'] not in ['GMR_42B05_AE_01', 'GMR_41G11_AE_01']: #PLUG
         return False
