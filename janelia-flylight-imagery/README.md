@@ -31,6 +31,29 @@ Files are organized by release, each of which is linked to a scientific publicat
             * _MIP files (PNG)_ - maximum intensity projections for rapid viewing
             * _movie files (MP4)_ - small movies for rapid viewing of Z slices
 
+FlyLight file names contain metadata as follows:
+```
+[Publishing Name]-[Slide Code]-[Driver]-[Gender]-[Objective]-[Area/Tile]-[Alignment Space]-CDM_[Channel].png
+```
+
+* **Publishing Name**: Publishing name for genetic fly line
+* **Slide Code**: unique identifier for the sample
+* **Driver**: GAL4, LexA, or Split_GAL4
+* **Gender**: [m]ale or [f]emale
+* **Objective**: microscope objective used to capture the original data
+* **Area/Tile**: brain area (e.g. Brain vs VNC) or tile name
+* **Alignment Space**: optional standard alignment space to which the MIP is registered. See [Janelia FlyLight Templates](https://open.quiltdata.com/b/janelia-flylight-templates) for more information about alignment spaces.
+* **Product**: this will differ according to the type of file it is - see examples below
+
+Examples:
+* **JSON metadata file**: SS02702-20141222_80_B4-Split_GAL4-f-20x-brain-metadata.json
+* **LSM file**: SS02702-20141222_80_B4-f-20x-brain-Split_GAL4.lsm.bz2
+* **Unaligned image stack file**: SS02702-20141222_80_B4-f-20x-brain-Split_GAL4-unaligned_stack.h5j
+* **Aligned image stack file**: SS02702-20141222_80_B4-f-20x-brain-Split_GAL4-JRC2018_FEMALE_20x_HR-aligned_stack.h5j
+* **Color depth MIP**: SS02702-20141222_80_B4-f-20x-brain-Split_GAL4-JRC2018_Unisex_20x_HR-CDM_1.png
+* **Other MIP**: SS02702-20141222_80_B4-f-20x-brain-Split_GAL4-multichannel_mip.png
+* **Movie**: SS02702-20141222_80_B4-f-20x-brain-Split_GAL4-signals_translation.mp4
+
 ## Related buckets
 
 * [FlyLight Alignment Templates](https://open.quiltdata.com/b/janelia-flylight-templates)
