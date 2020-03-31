@@ -6,7 +6,8 @@ This bucket contains Color Depth MIPs for all the published FlyLight and [https:
 | Library              | # images |
 |----------------------|----------|
 | FlyEM_Hemibrain_v1.0 | 34717    |
-| FlyLight_Gen1_LexA   | 5025     |
+| FlyLight_GEN1_GAL4   | 32932    |
+| FlyLight_Gen1_LexA   | 5033     |
 | Vienna_Gen1_GAL4     | 3588     |
 | Vienna_Gen1_LexA     | 2343     |
 
