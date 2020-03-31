@@ -38,10 +38,10 @@ FlyLight file names contain metadata as follows:
 
 * **Publishing Name**: Publishing name for genetic fly line
 * **Slide Code**: unique identifier for the sample
-* **Driver**: GAL4, LexA, or Split_GAL4
 * **Gender**: [m]ale or [f]emale
 * **Objective**: microscope objective used to capture the original data
 * **Area/Tile**: brain area (e.g. Brain vs VNC) or tile name
+* **Driver**: GAL4, LexA, or Split_GAL4
 * **Alignment Space**: optional standard alignment space to which the MIP is registered. See [Janelia FlyLight Templates](https://open.quiltdata.com/b/janelia-flylight-templates) for more information about alignment spaces.
 * **Product**: this will differ according to the type of file it is - see examples below
 
