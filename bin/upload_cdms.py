@@ -30,7 +30,7 @@ CONVERSION_REQUIRED = ['flyem_hemibrain']
 VERSION_REQUIRED = ['flyem_hemibrain']
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
-         'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'No release': 0,
+         'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
          'Duplicate objects': 0}
 PNAME = dict()
@@ -410,8 +410,8 @@ def process_flylight_splitgal4_drivers(sdata, sid, release):
     '''
     if ARG.LIBRARY == 'flylight_splitgal4_drivers' and ARG.RELEASE:
         if sdata[0]['line'] not in release:
-            COUNT['No release'] += 1
-            err_text = "No release for sample %s (%s)" % (sid, sdata[0]['line'])
+            COUNT['Not published'] += 1
+            err_text = "Sample %s (%s) was not published" % (sid, sdata[0]['line'])
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
             return False
@@ -431,8 +431,8 @@ def image_was_published(sid):
         except MySQLdb.Error as err:
             sql_error(err)
         if not rows:
-            COUNT['No release'] += 1
-            err_text = "No release for sample %s" % (sid)
+            COUNT['Not published'] += 1
+            err_text = "Sample %s was not published" % (sid)
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
             return False
@@ -477,13 +477,6 @@ def process_light(smp, mapping, driver, release):
     if not image_was_published(sid):
         return False
     sdata = call_responder('jacs', 'data/sample?sampleId=' + sid)
-    #if sdata[0]['line'] not in ['GMR_42B05_AE_01', 'GMR_41G11_AE_01']: #PLUG
-    #    return False
-    #if sdata[0]['line'] in ['GMR_68A07_AE_01', 'GMR_35D04_LJ_01']:
-    #    err_text = "Skipped bad line %s (%s)" % (smp['_id'], smp['name'])
-    #    LOGGER.warning(err_text)
-    #    ERR.write(err_text + "\n")
-    #    return False
     #if not process_flylight_splitgal4_drivers(sdata, sid, release):
     #    return False
     if sdata[0]['line'] == 'No Consensus':
