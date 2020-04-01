@@ -473,6 +473,8 @@ def process_light(smp, mapping, driver, release):
         ERR.write(err_text + "\n")
         return False
     sid = (smp['sampleRef'].split('#'))[-1]
+    update_jacs(sid, '', '') # PLUG null out URLs
+    return False
     LOGGER.info(sid)
     if not image_was_published(sid):
         return False
@@ -602,6 +604,14 @@ def produce_thumbnail(dirpath, fname, newname, url):
     return turl
 
 
+def update_jacs(sid, url, turl):
+    pay = {"class": "org.janelia.model.domain.gui.cdmip.ColorDepthImage",
+           "publicImageUrl": url,
+           "publicThumbnailUrl": turl}
+    call_responder('jacsv2', 'colorDepthMIPs/' + sid \
+                   + '/publicURLs', pay, True)
+
+
 def upload_cdms():
     ''' Upload color depth MIPs to AWS S3
         Keyword arguments:
@@ -646,11 +656,7 @@ def upload_cdms():
             if ARG.WRITE:
                 if ARG.LIBRARY in CONVERSION_REQUIRED:
                     os.remove(smp['filepath'])
-                pay = {"class": "org.janelia.model.domain.gui.cdmip.ColorDepthImage",
-                       "publicImageUrl": url,
-                       "publicThumbnailUrl": turl}
-                call_responder('jacsv2', 'colorDepthMIPs/' + smp['_id'] \
-                               + '/publicURLs', pay, True)
+                update_jacs(smp['_id'], url, turl)
             else:
                 LOGGER.info(url)
         elif ARG.WRITE:
