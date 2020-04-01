@@ -421,6 +421,24 @@ def process_flylight_splitgal4_drivers(sdata, sid, release):
     return True
 
 
+def image_was_published(sid):
+    if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
+        stmt = "SELECT id FROM image_data_mv WHERE workstation_sample_id=%s " \
+               + "AND to_publish='Y' AND alps_release IS NOT NULL"
+        try:
+            CURSOR['sage'].execute(stmt % (sid,))
+            rows = CURSOR['sage'].fetchall()
+        except MySQLdb.Error as err:
+            sql_error(err)
+        if not rows:
+            COUNT['No release'] += 1
+            err_text = "No release for sample %s" % (sid)
+            LOGGER.error(err_text)
+            ERR.write(err_text + "\n")
+            return False
+    return True
+
+
 def translate_slide_code(isc, line0):
     ''' Translate a slide code to remove initials.
         Keyword arguments:
@@ -456,6 +474,8 @@ def process_light(smp, mapping, driver, release):
         return False
     sid = (smp['sampleRef'].split('#'))[-1]
     LOGGER.info(sid)
+    if not image_was_published(sid):
+        return False
     sdata = call_responder('jacs', 'data/sample?sampleId=' + sid)
     #if sdata[0]['line'] not in ['GMR_42B05_AE_01', 'GMR_41G11_AE_01']: #PLUG
     #    return False
@@ -464,8 +484,8 @@ def process_light(smp, mapping, driver, release):
     #    LOGGER.warning(err_text)
     #    ERR.write(err_text + "\n")
     #    return False
-    if not process_flylight_splitgal4_drivers(sdata, sid, release):
-        return False
+    #if not process_flylight_splitgal4_drivers(sdata, sid, release):
+    #    return False
     if sdata[0]['line'] == 'No Consensus':
         COUNT['No Consensus'] += 1
         err_text = "No consensus line for sample %s (%s)" % (sid, sdata[0]['line'])
