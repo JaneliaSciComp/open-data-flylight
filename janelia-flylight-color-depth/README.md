@@ -48,7 +48,7 @@ Examples:
 
 Fly EM file names contain metadata as follows:
 ```
-[Body ID]-[Status Code]-[Alignment Space]-color_depth.png
+[Body ID]-[Status Code]-[Alignment Space]-CDM.png
 ```
 
 * **Body ID**: NeuPrint Body ID
