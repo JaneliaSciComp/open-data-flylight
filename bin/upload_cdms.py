@@ -473,8 +473,6 @@ def process_light(smp, mapping, driver, release):
         ERR.write(err_text + "\n")
         return False
     sid = (smp['sampleRef'].split('#'))[-1]
-    update_jacs(sid, '', '') # PLUG null out URLs
-    return False
     LOGGER.info(sid)
     if not image_was_published(sid):
         return False
@@ -511,6 +509,8 @@ def process_light(smp, mapping, driver, release):
         #if ARG.WRITE: PLUG
         #    sys.exit(-1)
         return False
+    update_jacs(sid, '', '') # PLUG null out URLs
+    return False
     if publishing_name not in PNAME:
         PNAME[publishing_name] = 1
     else:
