@@ -37,6 +37,7 @@ FlyLight file names contain metadata as follows:
 * **Alignment Space**: standard alignment space to which the MIP is registered. See [Janelia FlyLight Templates](https://open.quiltdata.com/b/janelia-flylight-templates) for more information about alignment spaces.
 * **Channel**: number of the channel from the aligned image stack that is represented by this MIP
 
+
 Examples:
 * **FlyLight Gen1 GAL4**: R16E08-20111230_32_mA01b_20111230103554390-GAL4-m-20x-brain-JRC2018_Unisex_20x_HR-CDM_1.png
 * **FlyLight Gen1 LexA**: R80G01-20110719_02_fA01b_20110720114726843-LexA-f-20x-brain-JRC2018_Unisex_20x_HR-CDM_1.png
