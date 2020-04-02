@@ -8,8 +8,8 @@ This bucket contains processed templates for registering images to standard alig
 
 * Root
     * `<alignment space name>`
-        * Template files (TIFF/NRRD)
+        * Template files (NRRD)
 
-The image files are in standard 3d TIFF and [NRRD](http://teem.sourceforge.net/nrrd/) formats.
+The image files are in standard 3d [NRRD](http://teem.sourceforge.net/nrrd/) format.
 
 [^bogovic]: Bogovic, J. A., Otsuna, H., Heinrich, L., Ito, M., Jeter, J., Meissner, G., Nern, A., Colonell, J., Malkesman, O., Ito, K., Saalfeld, S.. An unbiased template of the Drosophila brain and ventral nerve cord. bioRxiv 376384; DOI: [10.1101/376384](https://doi.org/10.1101/376384)
