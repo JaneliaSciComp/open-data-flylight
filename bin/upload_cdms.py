@@ -33,6 +33,7 @@ COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consens
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
          'Duplicate objects': 0}
+TRANSACTIONS = dict()
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 S3_CLIENT = S3_RESOURCE = ''
@@ -52,6 +53,10 @@ def call_responder(server, endpoint, payload='', authenticate=False):
         Returns:
           JSON response
     '''
+    if not server in TRANSACTIONS:
+        TRANSACTIONS[server] = 1
+    else:
+        TRANSACTIONS[server] += 1
     url = (CONFIG[server]['url'] if server else '') + endpoint
     try:
         if payload or authenticate:
@@ -623,7 +628,7 @@ def upload_cdms():
         if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
             COUNT['Already on JACS'] += 1
             continue
-        if ARG.CHECK:
+        if ARG.CHECK and 'publicThumbnailUrl' in smp:
             thumb = smp['publicThumbnailUrl']
             request = requests.get(thumb)
             if request.status_code == 200: 
@@ -706,4 +711,6 @@ if __name__ == '__main__':
     for fpath in [ERR_FILE]:
         if not os.path.getsize(fpath):
             os.remove(fpath)
+    print("Server calls (excluding AWS)")
+    print(TRANSACTIONS)
     sys.exit(0)
