@@ -25,7 +25,7 @@ CONN = dict()
 CURSOR = dict()
 
 GEN1_COLLECTION = ['flylight_gen1_gal4', 'flylight_gen1_lexa', 'flylight_vt_gal4_screen',
-                   'flylight_vt_lexa_screen', 'flylight_gen1_mcfo_case_1']
+                   'flylight_vt_lexa_screen', 'flylight_gen1_mcfo_published']
 CONVERSION_REQUIRED = ['flyem_hemibrain']
 VERSION_REQUIRED = ['flyem_hemibrain']
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
