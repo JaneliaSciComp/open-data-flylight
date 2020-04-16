@@ -11,6 +11,7 @@ import boto3
 from botocore.exceptions import ClientError
 import colorlog
 import jwt
+import re
 import requests
 import MySQLdb
 from PIL import Image
@@ -264,7 +265,7 @@ def publishing_name_mapping():
           mapping dictionary
     '''
     mapping = dict()
-    if '_vt_' in ARG.LIBRARY or ARG.LIBRARY == 'flylight_gen1_mcfo_case_1':
+    if '_vt_' in ARG.LIBRARY or ARG.LIBRARY == 'flylight_gen1_mcfo_published':
         data = call_responder('config', 'config/vt_conversion')
         vtm = data['config']
         for vtid in vtm:
@@ -360,6 +361,12 @@ def get_publishing_name(sdata, mapping):
         if ARG.LIBRARY in GEN1_COLLECTION and sdata[0]['publishingName'].endswith('L'):
             sdata[0]['publishingName'] = sdata[0]['publishingName'].replace('L', '')
         publishing_name = sdata[0]['publishingName']
+        if 'VT' in publishing_name and not re.match('^VT[0-9]+$', publishing_name):
+            field = re.match('(VT\d+)', publishing_name)
+            publishing_name = field[1]
+        if not (re.match('^R\d+$', publishing_name) or re.match('^VT\d+$', publishing_name)):
+            LOGGER.critical("Bad publishing name %s for %s", publishing_name, sdata[0]['line'])
+            sys.exit(0)
     elif sdata[0]['line'] in mapping:
         publishing_name = mapping[sdata[0]['line']]
     elif ARG.LIBRARY in GEN1_COLLECTION:
