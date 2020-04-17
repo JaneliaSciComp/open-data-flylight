@@ -33,7 +33,7 @@ Files are organized by release, each of which is linked to a scientific publicat
 
 FlyLight file names contain metadata as follows:
 ```
-[Publishing Name]-[Slide Code]-[Driver]-[Gender]-[Objective]-[Area/Tile]-[Alignment Space].[extension]
+[Publishing Name]-[Slide Code]-[Driver]-[Gender]-[Objective]-[Area/Tile]-[Alignment Space]-[Product].[extension]
 ```
 
 * **Publishing Name**: Publishing name for genetic fly line
