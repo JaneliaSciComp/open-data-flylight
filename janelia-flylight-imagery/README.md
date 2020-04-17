@@ -43,12 +43,12 @@ FlyLight file names contain metadata as follows:
 * **Area/Tile**: brain area (e.g. Brain vs VNC) or tile name
 * **Driver**: GAL4, LexA, or Split_GAL4
 * **Alignment Space**: optional standard alignment space to which the MIP is registered. See [Janelia FlyLight Templates](https://open.quiltdata.com/b/janelia-flylight-templates) for more information about alignment spaces. This is only included for aligned stacks, unaligned stacks, and Color Depth MIPs.
-* **Product**: this will differ according to the type of file it is - see examples below. For Color Depth MIPs, this will be in the form CDM_[Channel].
+* **Product**: this will differ according to the type of file it is - see examples below. For Color Depth MIPs, this will be in the form CDM_[Channel]. For LSMs, it will be a number used to encure uniqueness (LSMs are often merged/stitched to produce imagery).
 * **Exstension** a file extension (png, mp4, h5j, lsm, lsm.bz2, json)
 
 Examples:
 * **JSON metadata file**: SS02702-20141222_80_B4-f-20x-brain-Split_GAL4-metadata.json
-* **LSM file**: SS02702-20141222_80_B4-f-20x-brain-Split_GAL4.lsm.bz2
+* **LSM file**: SS02702-20141222_80_B4-f-20x-brain-Split_GAL4-6820373.lsm.bz2
 * **Unaligned image stack file**: SS02702-20141222_80_B4-f-20x-brain-Split_GAL4-unaligned_stack.h5j
 * **Aligned image stack file**: SS02702-20141222_80_B4-f-20x-brain-Split_GAL4-JRC2018_FEMALE_20x_HR-aligned_stack.h5j
 * **Color depth MIP**: SS02702-20141222_80_B4-f-20x-brain-Split_GAL4-JRC2018_Unisex_20x_HR-CDM_1.png
