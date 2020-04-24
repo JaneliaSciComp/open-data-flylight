@@ -353,6 +353,8 @@ def get_publishing_name(sdata, mapping):
         sys.exit(-1)
     if sdata[0]['line'] == 'No Consensus':
         return sdata[0]['line']
+    if ARG.LIBRARY == 'flylight_gen1_gal4' and not re.search('01$', sdata[0]['line']):
+        print("BAD LANDING SITE %s" % (sdata[0]['line']))
     if sdata[0]['line'] not in sdata[0]['name']:
         LOGGER.critical("Line %s not present in name %s", sdata[0]['line'], sdata[0]['name'])
         sys.exit(-1)
@@ -361,12 +363,18 @@ def get_publishing_name(sdata, mapping):
         if ARG.LIBRARY in GEN1_COLLECTION and sdata[0]['publishingName'].endswith('L'):
             sdata[0]['publishingName'] = sdata[0]['publishingName'].replace('L', '')
         publishing_name = sdata[0]['publishingName']
-        if 'VT' in publishing_name and not re.match('^VT[0-9]+$', publishing_name):
-            field = re.match('(VT\d+)', publishing_name)
-            publishing_name = field[1]
-        if not (re.match('^R\d+$', publishing_name) or re.match('^VT\d+$', publishing_name)):
-            LOGGER.critical("Bad publishing name %s for %s", publishing_name, sdata[0]['line'])
-            sys.exit(0)
+        if ARG.LIBRARY in GEN1_COLLECTION:
+            # Strip genotype information from VT lines
+            if 'VT' in publishing_name and not re.match('^VT[0-9]+$', publishing_name):
+                field = re.match('(VT\d+)', publishing_name)
+                publishing_name = field[1]
+            publishing_name = publishing_name.replace('-', '_')
+            if not (re.match('^R\d+[A-H]\d+$', publishing_name) or re.match('^VT\d+$', publishing_name)):
+                err_text = "Bad publishing name %s for %s" % (publishing_name, sdata[0]['line'])
+                LOGGER.error(err_text)
+                ERR.write(err_text + "\n")
+                #if ARG.WRITE:
+                #    sys.exit(-1)
     elif sdata[0]['line'] in mapping:
         publishing_name = mapping[sdata[0]['line']]
     elif ARG.LIBRARY in GEN1_COLLECTION:
@@ -511,8 +519,8 @@ def process_light(smp, mapping, driver, release):
         err_text = "No publishing name for sample %s (%s)" % (sid, sdata[0]['line'])
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
-        #if ARG.WRITE: PLUG
-        #    sys.exit(-1)
+        if ARG.WRITE:
+            sys.exit(-1)
         return False
     if publishing_name not in PNAME:
         PNAME[publishing_name] = 1
