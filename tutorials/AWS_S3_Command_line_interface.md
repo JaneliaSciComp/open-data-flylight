@@ -10,7 +10,7 @@ Janelia Research Campus' buckets are set up to enable anonymous access, so no co
 no changes to your configuration are needed.
 
 ## Listing files
-Use the AWS CLI *ls* command to list the contents of a bucket:
+Use the AWS CLI S3 *ls* command to list the contents of a bucket:
 ```
 aws s3 ls s3://janelia-flylight-imagery --no-sign-request
 ```
@@ -38,7 +38,7 @@ aws s3 ls s3://janelia-flylight-imagery/LPLC2_paper/ --no-sign-request
                            PRE SS00810/
                            PRE SS03752/
 ```
-Note that spaces in a prefixor object must be escaped with a baclslash ("__\__"):
+Note that spaces in a prefixor object must be escaped with a backslash ("__\__"):
 ```
 aws s3 ls s3://janelia-flylight-imagery/Gen1\ MCFO/ --no-sign-request
 ```
@@ -51,3 +51,9 @@ s3 ls s3://janelia-flylight-imagery/LPLC2_paper/ --no-sign-request --recursive
                         .
                         .
 ```
+## Copying files
+Use the AWS CLI S3 *cp* command to copy objects:
+```
+aws s3 cp s3://janelia-flylight-imagery/LPLC2_paper/OL0047B . --recursive --no-sign-request
+```
+The above command will copy all onjects under janelia-flylight-imagery/LPLC2_paper/OL0047B to your current directory.
