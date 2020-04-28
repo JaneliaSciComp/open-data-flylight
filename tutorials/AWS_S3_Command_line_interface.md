@@ -63,7 +63,7 @@ download: s3://janelia-flylight-imagery/LPLC2_paper/OL0047B/OL0047B-20131122_32_
 download: s3://janelia-flylight-imagery/LPLC2_paper/OL0047B/OL0047B-20131122_32_H5-f-63x-Brain-Split_GAL4-signals_mip.png to ./OL0047B-20131122_32_H5-f-63x-Brain-Split_GAL4-signals_mip.png
 Completed 108.7 MiB/~9.5 GiB (9.1 MiB/s) with ~37 file(s) remaining (calculating...
 ```
-It's always a good idea to simulate the copy firsy with the *--dryrun* parameter:
+It's always a good idea to simulate the copy first with the *--dryrun* parameter:
 ```
 aws s3 cp s3://janelia-flylight-imagery/LPLC2_paper/OL0047B . --recursive --no-sign-request --dryrun
 ```
@@ -72,5 +72,7 @@ You'll see what it would have copied:
 (dryrun) download: s3://janelia-flylight-imagery/LPLC2_paper/OL0047B/OL0047B-20131122_32_H5-f-63x-Brain-Split_GAL4-JRC2018_FEMALE_63x_DS-aligned_stack.h5j to ./OL0047B-20131122_32_H5-f-63x-Brain-Split_GAL4-JRC2018_FEMALE_63x_DS-aligned_stack.h5j
 (dryrun) download: s3://janelia-flylight-imagery/LPLC2_paper/OL0047B/OL0047B-20131122_32_H5-f-63x-Brain-Split_GAL4-JRC2018_FEMALE_63x_DS-aligned_stack.png to ./OL0047B-20131122_32_H5-f-63x-Brain-Split_GAL4-JRC2018_FEMALE_63x_DS-aligned_stack.png
 (dryrun) download: s3://janelia-flylight-imagery/LPLC2_paper/OL0047B/OL0047B-20131122_32_H5-f-63x-Brain-Split_GAL4-JRC2018_Unisex_20x_HR-CDM_1.png to ./OL0047B-20131122_32_H5-f-63x-Brain-Split_GAL4-JRC2018_Unisex_20x_HR-CDM_1.png
-
+                        .
+                        .
+                        .
 ```
