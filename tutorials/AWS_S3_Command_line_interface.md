@@ -38,3 +38,16 @@ aws s3 ls s3://janelia-flylight-imagery/LPLC2_paper/ --no-sign-request
                            PRE SS00810/
                            PRE SS03752/
 ```
+Note that spaces in a prefixor object must be escaped with a baclslash ("__\__"):
+```
+aws s3 ls s3://janelia-flylight-imagery/Gen1\ MCFO/ --no-sign-request
+```
+You can list files recursively with the *--recursive* parameter:
+```
+s3 ls s3://janelia-flylight-imagery/LPLC2_paper/ --no-sign-request --recursive
+2020-04-01 13:40:44      77680 LPLC2_paper/LPLC2_paper.metadata.json
+2020-04-18 14:11:06   49710318 LPLC2_paper/OL0047B/OL0047B-20131122_32_H5-f-63x-Brain-Split_GAL4-JRC2018_FEMALE_63x_DS-aligned_stack.h5j
+                        .
+                        .
+                        .
+```
