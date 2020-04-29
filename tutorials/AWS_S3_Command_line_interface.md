@@ -38,7 +38,7 @@ aws s3 ls s3://janelia-flylight-imagery/LPLC2_paper/ --no-sign-request
                            PRE SS00810/
                            PRE SS03752/
 ```
-Note that spaces in a prefixor object must be escaped with a backslash ("__\\__"):
+Note that any spaces in a prefix or object must be escaped with a backslash ("__\\__"):
 ```
 aws s3 ls s3://janelia-flylight-imagery/Gen1\ MCFO/ --no-sign-request
 ```
