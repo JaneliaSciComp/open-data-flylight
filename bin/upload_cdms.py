@@ -506,6 +506,11 @@ def process_light(smp, mapping, driver, release):
         ERR.write(err_text + "\n")
         if ARG.WRITE:
             return False
+    # PLUG
+    if ('16H01' in sdata[0]['line']) or ('UAH' in sdata[0]['line']):
+        print(sdata[0]['line'])
+    else:
+        return False
     publishing_name = get_publishing_name(sdata, mapping)
     if publishing_name == 'No Consensus':
         COUNT['No Consensus'] += 1
@@ -526,7 +531,7 @@ def process_light(smp, mapping, driver, release):
         PNAME[publishing_name] = 1
     else:
         PNAME[publishing_name] += 1
-    #print(sdata[0]['line'], publishing_name, smp['_id'], smp['filepath'].split('/')[-1]) #PLUG
+    print(sdata[0]['line'], publishing_name, smp['_id'], smp['filepath'].split('/')[-1]) #PLUG
     REC['line'] = publishing_name
     #REC['slide_code'] = translate_slide_code(sdata[0]['slideCode'], sdata[0]['line'])
     REC['slide_code'] = sdata[0]['slideCode']
