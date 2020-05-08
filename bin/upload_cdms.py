@@ -26,7 +26,8 @@ CONN = dict()
 CURSOR = dict()
 
 GEN1_COLLECTION = ['flylight_gen1_gal4', 'flylight_gen1_lexa', 'flylight_vt_gal4_screen',
-                   'flylight_vt_lexa_screen', 'flylight_gen1_mcfo_published']
+                   'flylight_vt_lexa_screen', 'flylight_gen1_mcfo_published',
+                   'flylight_gen1_mcfo_case_1_gamma1_4']
 CONVERSION_REQUIRED = ['flyem_hemibrain']
 VERSION_REQUIRED = ['flyem_hemibrain']
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
@@ -375,6 +376,9 @@ def get_publishing_name(sdata, mapping):
                 ERR.write(err_text + "\n")
                 #if ARG.WRITE:
                 #    sys.exit(-1)
+    return publishing_name
+    if 0:
+        pass
     elif sdata[0]['line'] in mapping:
         publishing_name = mapping[sdata[0]['line']]
     elif ARG.LIBRARY in GEN1_COLLECTION:
@@ -507,10 +511,10 @@ def process_light(smp, mapping, driver, release):
         if ARG.WRITE:
             return False
     # PLUG
-    if ('16H01' in sdata[0]['line']) or ('UAH' in sdata[0]['line']):
-        print(sdata[0]['line'])
-    else:
-        return False
+    #if ('16H01' in sdata[0]['line']) or ('UAH' in sdata[0]['line']):
+    #    print(sdata[0]['line'])
+    #else:
+    #    return False
     publishing_name = get_publishing_name(sdata, mapping)
     if publishing_name == 'No Consensus':
         COUNT['No Consensus'] += 1
@@ -524,8 +528,8 @@ def process_light(smp, mapping, driver, release):
         err_text = "No publishing name for sample %s (%s)" % (sid, sdata[0]['line'])
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
-        if ARG.WRITE:
-            sys.exit(-1)
+        #if ARG.WRITE:
+        #    sys.exit(-1)
         return False
     if publishing_name not in PNAME:
         PNAME[publishing_name] = 1
@@ -558,10 +562,13 @@ def process_light(smp, mapping, driver, release):
             sys.exit(-1)
         return False
     fname = os.path.basename(smp['filepath'])
-    chan = fname.split('-')[-1]
+    if 'gamma' in fname:
+        chan = fname.split('-')[-2]
+    else:
+        chan = fname.split('-')[-1]
     chan = chan.split('_')[0].replace('CH', '')
     if chan not in ['1', '2', '3', '4']:
-        LOGGER.critical("Could not find channel for %s", fname)
+        LOGGER.critical("Could not find channel for %s (%s)", fname, chan)
         sys.exit(-1)
     newname = '%s-%s-%s-%s-%s-%s-%s-CDM_%s.png' \
         % (REC['line'], REC['slide_code'], drv, REC['gender'],
