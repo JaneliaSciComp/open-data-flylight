@@ -91,6 +91,9 @@ def denormalize():
         if KEYFILE not in obj['Key']:
             total_objects += 1
             key_list.append(obj['Key'])
+    if not total_objects:
+        LOGGER.error("%s/%s was not found in the %s bucket", ARG.TEMPLATE, ARG.LIBRARY, ARG.BUCKET)
+        sys.exit(-1)
     object_name = '/'.join([ARG.TEMPLATE, ARG.LIBRARY, KEYFILE])
     tags = 'PROJECT=CDCS&STAGE=prod&DEVELOPER=svirskasr&VERSION=%s' % (__version__)
     LOGGER.info("Uploading %s", object_name)
