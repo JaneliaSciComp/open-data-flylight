@@ -3,7 +3,9 @@
 __version__ = '1.0.0'
 
 import argparse
+import json
 import os
+import re
 import socket
 import sys
 from time import strftime, time
@@ -11,7 +13,6 @@ import boto3
 from botocore.exceptions import ClientError
 import colorlog
 import jwt
-import re
 import requests
 import MySQLdb
 from PIL import Image
@@ -42,7 +43,9 @@ S3_CLIENT = S3_RESOURCE = ''
 MAX_SIZE = 500
 CREATE_THUMBNAIL = False
 S3_SECONDS = 60 * 60 * 12
+KEYFILE = "keys_denormalized.json"
 UPLOADED_NAME = dict()
+KEY_LIST = list()
 
 
 def call_responder(server, endpoint, payload='', authenticate=False):
@@ -182,6 +185,23 @@ def initialize_program():
     initialize_s3()
 
 
+def get_s3_names(bucket, newname):
+    ''' Return an S3 bucket and prefixed object name
+        Keyword arguments:
+          bucket: base bucket
+          newname: file to upload
+        Returns:
+          bucket and object name
+    '''
+    if ARG.MANIFOLD != 'prod':
+        bucket += '-' + ARG.MANIFOLD
+    library = LIBRARY[ARG.LIBRARY].replace(' ', '_')
+    if ARG.LIBRARY in VERSION_REQUIRED:
+        library += '_v' + ARG.VERSION
+    object_name = '/'.join([REC['alignment_space'], library, newname])
+    return bucket, object_name
+
+
 def upload_aws(bucket, dirpath, fname, newname):
     ''' Transfer a file to Amazon S3
         Keyword arguments:
@@ -194,12 +214,7 @@ def upload_aws(bucket, dirpath, fname, newname):
     '''
     COUNT['Files to upload'] += 1
     complete_fpath = '/'.join([dirpath, fname])
-    if ARG.MANIFOLD != 'prod':
-        bucket += '-' + ARG.MANIFOLD
-    library = LIBRARY[ARG.LIBRARY].replace(' ', '_')
-    if ARG.LIBRARY in VERSION_REQUIRED:
-        library += '_v' + ARG.VERSION
-    object_name = '/'.join([REC['alignment_space'], library, newname])
+    bucket, object_name = get_s3_names(bucket, newname)
     LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
     if object_name in UPLOADED_NAME:
         err_text = "%s was already uploaded from %s, but is now being uploaded from %s" % (object_name, UPLOADED_NAME[object_name], complete_fpath)
@@ -210,6 +225,7 @@ def upload_aws(bucket, dirpath, fname, newname):
     UPLOADED_NAME[object_name] = complete_fpath
     url = '/'.join([AWS['base_aws_url'], bucket, object_name])
     url = url.replace(' ', '+')
+    KEY_LIST.append(object_name)
     if not ARG.WRITE:
         LOGGER.info(newname)
         COUNT['Amazon S3 uploads'] += 1
@@ -377,9 +393,8 @@ def get_publishing_name(sdata, mapping):
                 #if ARG.WRITE:
                 #    sys.exit(-1)
     return publishing_name
-    if 0:
-        pass
-    elif sdata[0]['line'] in mapping:
+    # Old code
+    if sdata[0]['line'] in mapping:
         publishing_name = mapping[sdata[0]['line']]
     elif ARG.LIBRARY in GEN1_COLLECTION:
         lookup = degenerate_line(sdata[0]['line'])
@@ -684,6 +699,24 @@ def upload_cdms():
                 LOGGER.info(url)
         elif ARG.WRITE:
             LOGGER.error("Did not transfer %s", fname)
+    if COUNT['Already on JACS']:
+        LOGGER.warning("Denormalization key file WILL NOT be loaded - run denormalize_s3.py to upload")
+        return
+    if KEY_LIST:
+        bucket_name, object_name = get_s3_names(AWS['s3_bucket']['cdm'], KEYFILE)
+        LOGGER.info("Uploading %s to the %s bucket", object_name, bucket_name)
+        if ARG.WRITE:
+            tags = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
+                   + 'VERSION=' + __version__
+            try:
+                bucket = S3_RESOURCE.Bucket(bucket_name)
+                bucket.put_object(Body=json.dumps(KEY_LIST, indent=4),
+                                  Key=object_name,
+                                  ACL='public-read',
+                                  ContentType='application/json',
+                                  Tagging=tags)
+            except ClientError as err:
+                LOGGER.error(str(err))
 
 
 if __name__ == '__main__':
