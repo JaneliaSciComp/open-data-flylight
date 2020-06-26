@@ -16,6 +16,7 @@ __version__ = '1.1.0'
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = dict()
 KEYFILE = "keys_denormalized.json"
+COUNTFILE = "counts_denormalized.json"
 
 
 def call_responder(server, endpoint):
@@ -94,12 +95,23 @@ def denormalize():
     if not total_objects:
         LOGGER.error("%s/%s was not found in the %s bucket", ARG.TEMPLATE, ARG.LIBRARY, ARG.BUCKET)
         sys.exit(-1)
-    object_name = '/'.join([ARG.TEMPLATE, ARG.LIBRARY, KEYFILE])
     tags = 'PROJECT=CDCS&STAGE=prod&DEVELOPER=svirskasr&VERSION=%s' % (__version__)
+    object_name = '/'.join([ARG.TEMPLATE, ARG.LIBRARY, KEYFILE])
     LOGGER.info("Uploading %s", object_name)
     try:
         bucket = s3_resource.Bucket(ARG.BUCKET)
         bucket.put_object(Body=json.dumps(key_list, indent=4),
+                          Key=object_name,
+                          ACL='public-read',
+                          ContentType='application/json',
+                          Tagging=tags)
+    except ClientError as err:
+        LOGGER.error(str(err))
+    object_name = '/'.join([ARG.TEMPLATE, ARG.LIBRARY, COUNTFILE])
+    LOGGER.info("Uploading %s", object_name)
+    try:
+        bucket = s3_resource.Bucket(ARG.BUCKET)
+        bucket.put_object(Body=json.dumps({"objectCount": total_objects}, indent=4),
                           Key=object_name,
                           ACL='public-read',
                           ContentType='application/json',
