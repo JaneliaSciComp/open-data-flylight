@@ -89,7 +89,7 @@ def denormalize():
     prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY]) + '/'
     key_list = list()
     for obj in get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix):
-        if KEYFILE not in obj['Key']:
+        if KEYFILE not in obj['Key'] and COUNTFILE not in obj['Key']:
             total_objects += 1
             key_list.append(obj['Key'])
     if not total_objects:
