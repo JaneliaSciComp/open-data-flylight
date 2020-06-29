@@ -43,6 +43,7 @@ S3_CLIENT = S3_RESOURCE = ''
 MAX_SIZE = 500
 CREATE_THUMBNAIL = False
 S3_SECONDS = 60 * 60 * 12
+COUNTFILE = "counts_denormalized.json"
 KEYFILE = "keys_denormalized.json"
 UPLOADED_NAME = dict()
 KEY_LIST = list()
@@ -227,7 +228,7 @@ def upload_aws(bucket, dirpath, fname, newname):
     url = url.replace(' ', '+')
     KEY_LIST.append(object_name)
     if not ARG.WRITE:
-        LOGGER.info(newname)
+        LOGGER.info(object_name)
         COUNT['Amazon S3 uploads'] += 1
         return url
     mimetype = 'image/png' if '.png' in newname else 'image/jpeg'
@@ -394,6 +395,7 @@ def get_publishing_name(sdata, mapping):
                 #    sys.exit(-1)
     return publishing_name
     # Old code
+    #pylint: disable=W0101
     if sdata[0]['line'] in mapping:
         publishing_name = mapping[sdata[0]['line']]
     elif ARG.LIBRARY in GEN1_COLLECTION:
@@ -434,7 +436,12 @@ def process_hemibrain(smp):
     bodyid, status = smp['name'].split('_')[0:2]
     newname = '%s-%s-%s-CDM.png' \
     % (bodyid, status, REC['alignment_space'])
-    smp['filepath'] = convert_file(smp['filepath'], newname)
+    if ARG.JSON:
+        newname = newname.replace('.png', '.tif')
+        if '_FL' in smp['name']:
+            newname = newname.replace('CDM.', 'CDM_FL.')
+    else:
+        smp['filepath'] = convert_file(smp['filepath'], newname)
     return newname
 
 
@@ -650,8 +657,39 @@ def update_jacs(sid, url, turl):
                    + '/publicURLs', pay, True)
 
 
-def upload_cdms():
-    ''' Upload color depth MIPs to AWS S3
+def upload_cdms_from_file():
+    ''' Upload color depth MIPs and other files to AWS S3. The list of color depth MIPs comes from a supplied JSON file.
+        Keyword arguments:
+          None
+        Returns:
+          None
+    '''
+    jfile = open(ARG.JSON, 'r')
+    data = json.load(jfile)
+    jfile.close()
+    for smp in data:
+        if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
+            break
+        if ARG.LIBRARY == 'flyem_hemibrain':
+            REC['alignment_space'] = smp['alignmentSpace']
+            if 'imageArchivePath' in smp:
+                smp['name'] = smp['imageName']
+                smp['filepath'] = '/'.join([smp['imageArchivePath'], smp['name']])
+            else:
+                smp['filepath'] = smp['imageName']
+                smp['name'] = os.path.basename(smp['filepath'])
+            newname = process_hemibrain(smp)
+            if not newname:
+                continue
+            dirpath = os.path.dirname(smp['filepath'])
+            fname = os.path.basename(smp['filepath'])
+            newname = 'searchable_neurons/' + newname
+        url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+        COUNT['Samples'] += 1
+
+
+def upload_cdms_from_api():
+    ''' Upload color depth MIPs to AWS S3. The list of color depth MIPs comes from the JACS API.
         Keyword arguments:
           None
         Returns:
@@ -660,6 +698,7 @@ def upload_cdms():
     mapping, driver, release = get_line_mapping()
     samples = call_responder('jacsv2', 'colorDepthMIPs?libraryName=' + ARG.LIBRARY \
                              + '&alignmentSpace=' + CDM_ALIGNMENT_SPACE, '', True)
+    total_object = 0
     print("Samples for %s: %d" % (ARG.LIBRARY, len(samples)))
     for smp in samples:
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
@@ -673,7 +712,7 @@ def upload_cdms():
         if ARG.CHECK and 'publicThumbnailUrl' in smp:
             thumb = smp['publicThumbnailUrl']
             request = requests.get(thumb)
-            if request.status_code == 200: 
+            if request.status_code == 200:
                 COUNT['Already on S3'] += 1
                 #LOGGER.warning("%s is already on AWS S3", smp['publicThumbnailUrl'])
                 continue
@@ -689,6 +728,7 @@ def upload_cdms():
         dirpath = os.path.dirname(smp['filepath'])
         fname = os.path.basename(smp['filepath'])
         url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+        total_objects += 1
         if url:
             turl = produce_thumbnail(dirpath, fname, newname, url)
             if ARG.WRITE:
@@ -700,14 +740,14 @@ def upload_cdms():
         elif ARG.WRITE:
             LOGGER.error("Did not transfer %s", fname)
     if COUNT['Already on JACS']:
-        LOGGER.warning("Denormalization key file WILL NOT be loaded - run denormalize_s3.py to upload")
+        LOGGER.warning("Denormalization files WILL NOT be loaded - run denormalize_s3.py to upload")
         return
     if KEY_LIST:
+        tags = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
+               + 'VERSION=' + __version__
         bucket_name, object_name = get_s3_names(AWS['s3_bucket']['cdm'], KEYFILE)
         LOGGER.info("Uploading %s to the %s bucket", object_name, bucket_name)
         if ARG.WRITE:
-            tags = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
-                   + 'VERSION=' + __version__
             try:
                 bucket = S3_RESOURCE.Bucket(bucket_name)
                 bucket.put_object(Body=json.dumps(KEY_LIST, indent=4),
@@ -717,6 +757,16 @@ def upload_cdms():
                                   Tagging=tags)
             except ClientError as err:
                 LOGGER.error(str(err))
+            try:
+                object_name = COUNTFILE
+                bucket.put_object(Body=json.dumps({"objectCount": total_objects}, indent=4),
+                                  Key=object_name,
+                                  ACL='public-read',
+                                  ContentType='application/json',
+                                  Tagging=tags)
+            except ClientError as err:
+                LOGGER.error(str(err))
+
 
 
 if __name__ == '__main__':
@@ -724,6 +774,8 @@ if __name__ == '__main__':
         description="Upload Color Depth MIPs to AWS S3")
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='flylight_splitgal4_drivers', help='color depth library')
+    PARSER.add_argument('--json', dest='JSON', action='store',
+                        help='JSON file')
     PARSER.add_argument('--release', dest='RELEASE', action='store',
                         help='ALPS release')
     PARSER.add_argument('--rewrite', dest='REWRITE', action='store_true',
@@ -764,7 +816,10 @@ if __name__ == '__main__':
     if ARG.LIBRARY == 'flylight_splitgal4_drivers':
         DATABASE = 'mbew'
     initialize_program()
-    upload_cdms()
+    if ARG.JSON:
+        upload_cdms_from_file()
+    else:
+        upload_cdms_from_api()
     ERR.close()
     for key in sorted(COUNT):
         print("%-20s %d" % (key + ':', COUNT[key]))
