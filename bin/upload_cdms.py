@@ -661,7 +661,6 @@ def set_name_and_filepath(smp):
     if 'imageArchivePath' in smp:
         smp['name'] = smp['imageName']
         smp['filepath'] = '/'.join([smp['imageArchivePath'], smp['name']])
-        LOGGER.warning("Archive")
     else:
         smp['filepath'] = smp['imageName']
         smp['name'] = os.path.basename(smp['filepath'])
@@ -686,18 +685,23 @@ def upload_cdms_from_file():
             continue
         REC['alignment_space'] = smp['alignmentSpace']
         # Primary image
+        skip_primary = False
         if ARG.LIBRARY == 'flyem_hemibrain':
-            set_name_and_filepath(smp)
-            newname = process_hemibrain(smp)
-            if not newname:
-                continue
+            if 'imageArchivePath' in smp:
+                skip_primary = True
+            else:
+                set_name_and_filepath(smp)
+                newname = process_hemibrain(smp)
+                if not newname:
+                    continue
         else:
             newname = process_light(smp, mapping, driver, release)
             if not newname:
                 continue
-        dirpath = os.path.dirname(smp['filepath'])
-        fname = os.path.basename(smp['filepath'])
-        url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+        if not skip_primary:
+            dirpath = os.path.dirname(smp['filepath'])
+            fname = os.path.basename(smp['filepath'])
+            url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
         # Ancillary images
         if ARG.LIBRARY == 'flyem_hemibrain':
             set_name_and_filepath(smp)
