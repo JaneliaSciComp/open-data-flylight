@@ -701,6 +701,8 @@ def upload_cdms_from_api():
     total_objects = 0
     print("Samples for %s: %d" % (ARG.LIBRARY, len(samples)))
     for smp in samples:
+        print(smp)
+        sys.exit(0)
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
