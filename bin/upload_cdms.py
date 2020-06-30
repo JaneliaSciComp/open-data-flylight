@@ -707,7 +707,7 @@ def upload_cdms_from_file():
                 if ARG.WRITE:
                     if ARG.LIBRARY in CONVERSION_REQUIRED:
                         os.remove(smp['filepath'])
-                    update_jacs(smp['_id'], url, turl)
+                    #update_jacs(smp['_id'], url, turl)
                 else:
                     LOGGER.info(url)
             elif ARG.WRITE:
