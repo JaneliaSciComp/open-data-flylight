@@ -426,7 +426,7 @@ def convert_file(sourcepath, newname):
     return newpath
 
 
-def process_hemibrain(smp):
+def process_hemibrain(smp, convert=True):
     ''' Return the file name for a hemibrain sample.
         Keyword arguments:
           smp: sample record
@@ -436,12 +436,12 @@ def process_hemibrain(smp):
     bodyid, status = smp['name'].split('_')[0:2]
     newname = '%s-%s-%s-CDM.png' \
     % (bodyid, status, REC['alignment_space'])
-    if ARG.JSON:
+    if convert:
+        smp['filepath'] = convert_file(smp['filepath'], newname)
+    else:
         newname = newname.replace('.png', '.tif')
         if '_FL' in smp['name']:
             newname = newname.replace('CDM.', 'CDM_FL.')
-    else:
-        smp['filepath'] = convert_file(smp['filepath'], newname)
     return newname
 
 
@@ -690,7 +690,6 @@ def upload_cdms_from_file():
             newname = process_hemibrain(smp)
             if not newname:
                 continue
-            newname = 'searchable_neurons/' + newname
         else:
             newname = process_light(smp, mapping, driver, release)
             if not newname:
@@ -698,7 +697,14 @@ def upload_cdms_from_file():
         dirpath = os.path.dirname(smp['filepath'])
         fname = os.path.basename(smp['filepath'])
         url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
-
+        # Ancillary images
+        if ARG.LIBRARY == 'flyem_hemibrain':
+            set_name_and_filepath(smp)
+            newname = process_hemibrain(smp, False)
+            newname = 'searchable_neurons/' + newname
+            dirpath = os.path.dirname(smp['filepath'])
+            fname = os.path.basename(smp['filepath'])
+            url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
 
 def upload_cdms_from_api():
     ''' Upload color depth MIPs to AWS S3. The list of color depth MIPs comes from the JACS API.
