@@ -32,6 +32,8 @@ GEN1_COLLECTION = ['flylight_gen1_gal4', 'flylight_gen1_lexa', 'flylight_vt_gal4
 CONVERSION_REQUIRED = ['flyem_hemibrain']
 VERSION_REQUIRED = ['flyem_hemibrain']
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
+TAGS = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
+       + 'VERSION=' + __version__
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
@@ -203,13 +205,14 @@ def get_s3_names(bucket, newname):
     return bucket, object_name
 
 
-def upload_aws(bucket, dirpath, fname, newname):
+def upload_aws(bucket, dirpath, fname, newname, mimetype=''):
     ''' Transfer a file to Amazon S3
         Keyword arguments:
           bucket: S3 bucket
           dirpath: source directory
           fname: file name
           newname: new file name
+          mimetype: MIME type (if other than JPEG or PNG)
         Returns:
           url
     '''
@@ -231,14 +234,13 @@ def upload_aws(bucket, dirpath, fname, newname):
         LOGGER.info(object_name)
         COUNT['Amazon S3 uploads'] += 1
         return url
-    mimetype = 'image/png' if '.png' in newname else 'image/jpeg'
-    tags = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
-           + 'VERSION=' + __version__
+    if not mimetype:
+        mimetype = 'image/png' if '.png' in newname else 'image/jpeg'
     try:
         S3_CLIENT.upload_file(complete_fpath, bucket,
                               object_name,
                               ExtraArgs={'ContentType': mimetype, 'ACL': 'public-read',
-                                         'Tagging': tags})
+                                         'Tagging': TAGS})
         #obj = S3_RESOURCE.Object(bucket, object_name)
         #obj.copy_from(CopySource={'Bucket': bucket,
         #                          'Key': object_name},
@@ -657,6 +659,15 @@ def update_jacs(sid, url, turl):
                    + '/publicURLs', pay, True)
 
 
+def set_name_and_filepath(smp):
+    if 'imageArchivePath' in smp:
+        smp['name'] = smp['imageName']
+        smp['filepath'] = '/'.join([smp['imageArchivePath'], smp['name']])
+    else:
+        smp['filepath'] = smp['imageName']
+        smp['name'] = os.path.basename(smp['filepath'])
+
+
 def upload_cdms_from_file():
     ''' Upload color depth MIPs and other files to AWS S3. The list of color depth MIPs comes from a supplied JSON file.
         Keyword arguments:
@@ -670,22 +681,25 @@ def upload_cdms_from_file():
     for smp in data:
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
+        COUNT['Samples'] += 1
+        if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
+            COUNT['Already on JACS'] += 1
+            continue
+        REC['alignment_space'] = smp['alignmentSpace']
+        # Primary image
         if ARG.LIBRARY == 'flyem_hemibrain':
-            REC['alignment_space'] = smp['alignmentSpace']
-            if 'imageArchivePath' in smp:
-                smp['name'] = smp['imageName']
-                smp['filepath'] = '/'.join([smp['imageArchivePath'], smp['name']])
-            else:
-                smp['filepath'] = smp['imageName']
-                smp['name'] = os.path.basename(smp['filepath'])
+            set_name_and_filepath(smp)
             newname = process_hemibrain(smp)
             if not newname:
                 continue
-            dirpath = os.path.dirname(smp['filepath'])
-            fname = os.path.basename(smp['filepath'])
             newname = 'searchable_neurons/' + newname
+        else:
+            newname = process_light(smp, mapping, driver, release)
+            if not newname:
+                continue
+        dirpath = os.path.dirname(smp['filepath'])
+        fname = os.path.basename(smp['filepath'])
         url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
-        COUNT['Samples'] += 1
 
 
 def upload_cdms_from_api():
@@ -701,8 +715,6 @@ def upload_cdms_from_api():
     total_objects = 0
     print("Samples for %s: %d" % (ARG.LIBRARY, len(samples)))
     for smp in samples:
-        print(json.dumps(smp, indent=4))
-        sys.exit(0)
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
@@ -745,8 +757,6 @@ def upload_cdms_from_api():
         LOGGER.warning("Denormalization files WILL NOT be loaded - run denormalize_s3.py to upload")
         return
     if KEY_LIST:
-        tags = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
-               + 'VERSION=' + __version__
         bucket_name, object_name = get_s3_names(AWS['s3_bucket']['cdm'], KEYFILE)
         LOGGER.info("Uploading %s to the %s bucket", object_name, bucket_name)
         if ARG.WRITE:
@@ -756,7 +766,7 @@ def upload_cdms_from_api():
                                   Key=object_name,
                                   ACL='public-read',
                                   ContentType='application/json',
-                                  Tagging=tags)
+                                  Tagging=TAGS)
             except ClientError as err:
                 LOGGER.error(str(err))
             try:
@@ -765,7 +775,7 @@ def upload_cdms_from_api():
                                   Key=object_name,
                                   ACL='public-read',
                                   ContentType='application/json',
-                                  Tagging=tags)
+                                  Tagging=TAGS)
             except ClientError as err:
                 LOGGER.error(str(err))
 
