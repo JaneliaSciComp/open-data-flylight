@@ -661,6 +661,7 @@ def set_name_and_filepath(smp):
     if 'imageArchivePath' in smp:
         smp['name'] = smp['imageName']
         smp['filepath'] = '/'.join([smp['imageArchivePath'], smp['name']])
+        LOGGER.warning("Archive")
     else:
         smp['filepath'] = smp['imageName']
         smp['name'] = os.path.basename(smp['filepath'])
