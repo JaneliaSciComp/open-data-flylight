@@ -3,6 +3,7 @@
 __version__ = '1.0.0'
 
 import argparse
+from datetime import datetime
 import json
 import os
 import re
@@ -850,10 +851,13 @@ if __name__ == '__main__':
     if ARG.LIBRARY == 'flylight_splitgal4_drivers':
         DATABASE = 'mbew'
     initialize_program()
+    START_TIME = datetime.now()
     if ARG.JSON:
         upload_cdms_from_file()
     else:
         upload_cdms_from_api()
+    STOP_TIME = datetime.now()
+    print("Elapsed time: %s" %  (STOP_TIME - START_TIME))
     ERR.close()
     for key in sorted(COUNT):
         print("%-20s %d" % (key + ':', COUNT[key]))
