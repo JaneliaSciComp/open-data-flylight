@@ -702,6 +702,16 @@ def upload_cdms_from_file():
             dirpath = os.path.dirname(smp['filepath'])
             fname = os.path.basename(smp['filepath'])
             url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+            if url:
+                turl = produce_thumbnail(dirpath, fname, newname, url)
+                if ARG.WRITE:
+                    if ARG.LIBRARY in CONVERSION_REQUIRED:
+                        os.remove(smp['filepath'])
+                    update_jacs(smp['_id'], url, turl)
+                else:
+                    LOGGER.info(url)
+            elif ARG.WRITE:
+                LOGGER.error("Did not transfer primry image %s", fname)
         # Ancillary images
         if ARG.LIBRARY == 'flyem_hemibrain':
             set_name_and_filepath(smp)
@@ -709,7 +719,8 @@ def upload_cdms_from_file():
             newname = 'searchable_neurons/' + newname
             dirpath = os.path.dirname(smp['filepath'])
             fname = os.path.basename(smp['filepath'])
-            url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+            url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname, 'image/tiff')
+
 
 def upload_cdms_from_api():
     ''' Upload color depth MIPs to AWS S3. The list of color depth MIPs comes from the JACS API.
