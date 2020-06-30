@@ -698,7 +698,7 @@ def upload_cdms_from_api():
     mapping, driver, release = get_line_mapping()
     samples = call_responder('jacsv2', 'colorDepthMIPs?libraryName=' + ARG.LIBRARY \
                              + '&alignmentSpace=' + CDM_ALIGNMENT_SPACE, '', True)
-    total_object = 0
+    total_objects = 0
     print("Samples for %s: %d" % (ARG.LIBRARY, len(samples)))
     for smp in samples:
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
