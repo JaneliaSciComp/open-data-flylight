@@ -758,7 +758,7 @@ def upload_cdms_from_file():
                 ERR.write(err_text + "\n")
                 continue
             if 'imageArchivePath' in smp and 'imageName' in smp:
-                smp['searchableNeuronsName'] = '/'.join(['imageArchivePath', 'imageName'])
+                smp['searchableNeuronsName'] = '/'.join([smp['imageArchivePath'], smp['imageName']])
         if not skip_primary:
             dirpath = os.path.dirname(smp['filepath'])
             fname = os.path.basename(smp['filepath'])
