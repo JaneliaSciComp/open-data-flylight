@@ -220,7 +220,8 @@ def upload_aws(bucket, dirpath, fname, newname, mimetype=''):
     bucket, object_name = get_s3_names(bucket, newname)
     LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
     if object_name in UPLOADED_NAME:
-        err_text = "%s was already uploaded from %s, but is now being uploaded from %s" % (object_name, UPLOADED_NAME[object_name], complete_fpath)
+        err_text = "%s was already uploaded from %s, but is now being uploaded from %s" \
+                   % (object_name, UPLOADED_NAME[object_name], complete_fpath)
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
         COUNT['Duplicate objects'] += 1
@@ -388,7 +389,8 @@ def get_publishing_name(sdata, mapping):
                 field = re.match('(VT\d+)', publishing_name)
                 publishing_name = field[1]
             publishing_name = publishing_name.replace('-', '_')
-            if not (re.match('^R\d+[A-H]\d+$', publishing_name) or re.match('^VT\d+$', publishing_name)):
+            if not (re.match('^R\d+[A-H]\d+$', publishing_name) \
+               or re.match('^VT\d+$', publishing_name)):
                 err_text = "Bad publishing name %s for %s" % (publishing_name, sdata[0]['line'])
                 LOGGER.error(err_text)
                 ERR.write(err_text + "\n")
@@ -469,6 +471,12 @@ def process_flylight_splitgal4_drivers(sdata, sid, release):
 
 
 def image_was_published(sid):
+    ''' Determine if a sample was published
+        Keyword arguments:
+          sid: sample ID
+        Returns:
+          True or False
+    '''
     if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
         stmt = "SELECT id FROM image_data_mv WHERE workstation_sample_id=%s " \
                + "AND to_publish='Y' AND alps_release IS NOT NULL"
@@ -524,8 +532,9 @@ def process_light(smp, mapping, driver, release):
     if not image_was_published(sid):
         return False
     sdata = call_responder('jacs', 'data/sample?sampleId=' + sid)
+    # This is temporarily disabled
     #if not process_flylight_splitgal4_drivers(sdata, sid, release):
-    #    return False
+        #return False
     if sdata[0]['line'] == 'No Consensus':
         COUNT['No Consensus'] += 1
         err_text = "No consensus line for sample %s (%s)" % (sid, sdata[0]['line'])
@@ -651,6 +660,14 @@ def produce_thumbnail(dirpath, fname, newname, url):
 
 
 def update_jacs(sid, url, turl):
+    ''' Update a sample in JACS with URL and thumbnail URL for viewable image
+        Keyword arguments:
+          sid: sample ID
+          url: image URL
+          turl: thumbnail URL
+        Returns:
+          None
+    '''
     if ARG.MANIFOLD != 'prod':
         return
     pay = {"class": "org.janelia.model.domain.gui.cdmip.ColorDepthImage",
@@ -661,6 +678,12 @@ def update_jacs(sid, url, turl):
 
 
 def set_name_and_filepath(smp):
+    ''' Determine a sample's name and filepath
+        Keyword arguments:
+          smp: sample record
+        Returns:
+          None
+    '''
     if 'imageArchivePath' in smp:
         smp['name'] = smp['imageName']
         smp['filepath'] = '/'.join([smp['imageArchivePath'], smp['name']])
@@ -670,12 +693,14 @@ def set_name_and_filepath(smp):
 
 
 def upload_cdms_from_file():
-    ''' Upload color depth MIPs and other files to AWS S3. The list of color depth MIPs comes from a supplied JSON file.
+    ''' Upload color depth MIPs and other files to AWS S3.
+        The list of color depth MIPs comes from a supplied JSON file.
         Keyword arguments:
           None
         Returns:
           None
     '''
+    mapping, driver, release = get_line_mapping()
     jfile = open(ARG.JSON, 'r')
     data = json.load(jfile)
     jfile.close()
@@ -714,7 +739,7 @@ def upload_cdms_from_file():
                 else:
                     LOGGER.info(url)
             elif ARG.WRITE:
-                LOGGER.error("Did not transfer primry image %s", fname)
+                LOGGER.error("Did not transfer primary image %s", fname)
         # Ancillary images
         if ARG.LIBRARY == 'flyem_hemibrain':
             set_name_and_filepath(smp)
