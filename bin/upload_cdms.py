@@ -685,6 +685,7 @@ def upload_cdms_from_file():
             COUNT['Already on JACS'] += 1
             continue
         REC['alignment_space'] = smp['alignmentSpace']
+        print(json.dumps(smp, indent=4))
         # Primary image
         skip_primary = False
         if ARG.LIBRARY == 'flyem_hemibrain':
@@ -704,7 +705,9 @@ def upload_cdms_from_file():
             fname = os.path.basename(smp['filepath'])
             url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
             if url:
+                print(url)
                 turl = produce_thumbnail(dirpath, fname, newname, url)
+                print(turl)
                 if ARG.WRITE:
                     if ARG.LIBRARY in CONVERSION_REQUIRED:
                         os.remove(smp['filepath'])
