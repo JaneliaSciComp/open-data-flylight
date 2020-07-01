@@ -205,14 +205,13 @@ def get_s3_names(bucket, newname):
     return bucket, object_name
 
 
-def upload_aws(bucket, dirpath, fname, newname, mimetype=''):
+def upload_aws(bucket, dirpath, fname, newname):
     ''' Transfer a file to Amazon S3
         Keyword arguments:
           bucket: S3 bucket
           dirpath: source directory
           fname: file name
           newname: new file name
-          mimetype: MIME type (if other than JPEG or PNG)
         Returns:
           url
     '''
@@ -235,8 +234,12 @@ def upload_aws(bucket, dirpath, fname, newname, mimetype=''):
         LOGGER.info(object_name)
         COUNT['Amazon S3 uploads'] += 1
         return url
-    if not mimetype:
-        mimetype = 'image/png' if '.png' in newname else 'image/jpeg'
+    if newname.endswith('.png'):
+        mimetype = 'image/png'
+    elif newname.endswith('.jpg'):
+        mimetype = 'image/jpeg'
+    else:
+        mimetype = 'image/tiff'
     try:
         S3_CLIENT.upload_file(complete_fpath, bucket,
                               object_name,
@@ -710,7 +713,11 @@ def upload_flylight_ancillary_files(smp, newname):
     for ancillary in FLYLIGHT_ANCILLARY:
         if ancillary not in smp:
             continue
-        print(newname, smp[ancillary])
+        fname, ext = '.'.split(smp[ancillary])
+        seq = fname.split('_')[-1]
+        fname = fname.split('.')[0]
+        newname = '.'.join(['-'.join([fname, seq]), ext])
+        print(smp[ancillary], newname)
 
 def upload_cdms_from_file():
     ''' Upload color depth MIPs and other files to AWS S3.
@@ -782,7 +789,7 @@ def upload_cdms_from_file():
             newname = 'searchable_neurons/' + newname
             dirpath = os.path.dirname(smp['filepath'])
             fname = os.path.basename(smp['filepath'])
-            url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname, 'image/tiff')
+            url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
         else:
             upload_flylight_ancillary_files(smp, newname)
 
