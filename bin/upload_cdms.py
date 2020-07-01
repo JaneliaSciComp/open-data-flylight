@@ -730,7 +730,9 @@ def upload_cdms_from_file():
                 set_name_and_filepath(smp)
                 newname = process_hemibrain(smp)
                 if not newname:
-                    LOGGER.error("No publishing name for FlyEM %s", smp['name'])
+                    err_text = "No publishing name for FlyEM %s" % smp['name']
+                    LOGGER.error(err_text)
+                    ERR.write(err_text + "\n")
                     COUNT['No publishing name'] += 1
                     continue
         else:
