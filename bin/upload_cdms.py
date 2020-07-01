@@ -709,6 +709,7 @@ def upload_cdms_from_file():
     data = json.load(jfile)
     jfile.close()
     for smp in data:
+        smp['_id'] = smp['id']
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
