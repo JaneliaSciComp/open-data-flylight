@@ -32,6 +32,7 @@ GEN1_COLLECTION = ['flylight_gen1_gal4', 'flylight_gen1_lexa', 'flylight_vt_gal4
                    'flylight_gen1_mcfo_case_1_gamma1_4']
 CONVERSION_REQUIRED = ['flyem_hemibrain']
 VERSION_REQUIRED = ['flyem_hemibrain']
+FLYLIGHT_ANCILLARY = {"imageGradientName": "gradient", "imageZGapName": "zgap", "searchableNeuronsName": "searchable_neurons"}
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
@@ -698,6 +699,19 @@ def set_name_and_filepath(smp):
         smp['name'] = os.path.basename(smp['filepath'])
 
 
+def upload_flylight_ancillary_files(smp, newname):
+    ''' Determine a sample's name and filepath
+        Keyword arguments:
+          smp: sample record
+          newname: computed filename
+        Returns:
+          None
+    '''
+    for ancillary in FLYLIGHT_ANCILLARY:
+        if ancillary not in smp:
+            continue
+        print(newname, smp['ancillary'])
+
 def upload_cdms_from_file():
     ''' Upload color depth MIPs and other files to AWS S3.
         The list of color depth MIPs comes from a supplied JSON file.
@@ -739,7 +753,12 @@ def upload_cdms_from_file():
             set_name_and_filepath(smp)
             newname = process_light(smp, mapping, driver, release)
             if not newname:
+                err_text = "No publishing name for FlyEM %s" % smp['name']
+                LOGGER.error(err_text)
+                ERR.write(err_text + "\n")
                 continue
+            if 'imageArchivePath' in smp and 'imageName' in smp:
+                smp['searchableNeuronsName'] = '/'.join(['imageArchivePath', 'imageName'])
         if not skip_primary:
             dirpath = os.path.dirname(smp['filepath'])
             fname = os.path.basename(smp['filepath'])
@@ -764,6 +783,8 @@ def upload_cdms_from_file():
             dirpath = os.path.dirname(smp['filepath'])
             fname = os.path.basename(smp['filepath'])
             url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname, 'image/tiff')
+        else:
+            upload_flylight_ancillary_files(smp, newname)
 
 
 def upload_cdms_from_api():
