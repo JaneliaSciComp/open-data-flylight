@@ -708,6 +708,8 @@ def upload_cdms_from_file():
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
+        if not COUNT['Samples'] % 1000:
+            print(COUNT['Samples'])
         if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
             COUNT['Already on JACS'] += 1
             continue
