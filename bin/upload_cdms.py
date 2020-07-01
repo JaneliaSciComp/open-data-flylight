@@ -713,7 +713,7 @@ def upload_flylight_ancillary_files(smp, newname):
     for ancillary in FLYLIGHT_ANCILLARY:
         if ancillary not in smp:
             continue
-        fname, ext = '.'.split(smp[ancillary])
+        fname, ext = smp[ancillary].split('.')
         seq = fname.split('_')[-1]
         fname = fname.split('.')[0]
         newname = '.'.join(['-'.join([fname, seq]), ext])
