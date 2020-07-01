@@ -438,7 +438,6 @@ def process_hemibrain(smp, convert=True):
     '''
     bodyid, status = smp['name'].split('_')[0:2]
     if bodyid.endswith('-'):
-        LOGGER.error("No publishing name for FlyEM %s", smp['name'])
         return False
     newname = '%s-%s-%s-CDM.png' \
     % (bodyid, status, REC['alignment_space'])
@@ -731,6 +730,8 @@ def upload_cdms_from_file():
                 set_name_and_filepath(smp)
                 newname = process_hemibrain(smp)
                 if not newname:
+                    LOGGER.error("No publishing name for FlyEM %s", smp['name'])
+                    COUNT['No publishing name'] += 1
                     continue
         else:
             set_name_and_filepath(smp)
