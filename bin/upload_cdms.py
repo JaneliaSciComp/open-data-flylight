@@ -755,6 +755,8 @@ def upload_cdms_from_file():
         if ARG.LIBRARY == 'flyem_hemibrain':
             set_name_and_filepath(smp)
             newname = process_hemibrain(smp, False)
+            if not newname:
+                continue
             newname = 'searchable_neurons/' + newname
             dirpath = os.path.dirname(smp['filepath'])
             fname = os.path.basename(smp['filepath'])
