@@ -651,6 +651,8 @@ def produce_thumbnail(dirpath, fname, newname, url):
 
 
 def update_jacs(sid, url, turl):
+    if ARG.MANIFOLD != 'prod':
+        return
     pay = {"class": "org.janelia.model.domain.gui.cdmip.ColorDepthImage",
            "publicImageUrl": url,
            "publicThumbnailUrl": turl}
@@ -685,7 +687,6 @@ def upload_cdms_from_file():
             COUNT['Already on JACS'] += 1
             continue
         REC['alignment_space'] = smp['alignmentSpace']
-        print(json.dumps(smp, indent=4))
         # Primary image
         skip_primary = False
         if ARG.LIBRARY == 'flyem_hemibrain':
@@ -705,13 +706,11 @@ def upload_cdms_from_file():
             fname = os.path.basename(smp['filepath'])
             url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
             if url:
-                print(url)
                 turl = produce_thumbnail(dirpath, fname, newname, url)
-                print(turl)
                 if ARG.WRITE:
                     if ARG.LIBRARY in CONVERSION_REQUIRED:
                         os.remove(smp['filepath'])
-                    #update_jacs(smp['_id'], url, turl)
+                    update_jacs(smp['_id'], url, turl)
                 else:
                     LOGGER.info(url)
             elif ARG.WRITE:
