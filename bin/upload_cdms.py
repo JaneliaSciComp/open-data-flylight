@@ -444,7 +444,7 @@ def process_hemibrain(smp, convert=True):
     else:
         newname = newname.replace('.png', '.tif')
         if '_FL' in smp['name']:
-            newname = newname.replace('CDM.', 'CDM_FL.')
+            newname = newname.replace('CDM.', 'CDM-FL.')
     return newname
 
 
