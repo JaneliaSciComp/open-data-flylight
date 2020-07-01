@@ -437,6 +437,7 @@ def process_hemibrain(smp, convert=True):
           New file name
     '''
     bodyid, status = smp['name'].split('_')[0:2]
+    print(bodyid)
     newname = '%s-%s-%s-CDM.png' \
     % (bodyid, status, REC['alignment_space'])
     if convert:
