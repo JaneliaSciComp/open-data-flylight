@@ -684,6 +684,10 @@ def set_name_and_filepath(smp):
         Returns:
           None
     '''
+    if ARG.LIBRARY != 'flyem_hemibrain':
+        smp['filepath'] = smp['cdmPath']
+        smp['name'] = os.path.basename(smp['filepath'])
+        return
     if 'imageArchivePath' in smp:
         smp['name'] = smp['imageName']
         smp['filepath'] = '/'.join([smp['imageArchivePath'], smp['name']])
@@ -725,6 +729,7 @@ def upload_cdms_from_file():
                 if not newname:
                     continue
         else:
+            set_name_and_filepath(smp)
             newname = process_light(smp, mapping, driver, release)
             if not newname:
                 continue
@@ -732,6 +737,8 @@ def upload_cdms_from_file():
             dirpath = os.path.dirname(smp['filepath'])
             fname = os.path.basename(smp['filepath'])
             url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+            print(smp['imageURL'])
+            print(url)
             if url:
                 turl = produce_thumbnail(dirpath, fname, newname, url)
                 if ARG.WRITE:
