@@ -718,7 +718,6 @@ def upload_flylight_ancillary_files(smp, newname):
         seq = fname.split('_')[-1]
         fname = fname.split('.')[0]
         ancname = '.'.join(['-'.join([fbase, seq]), ext])
-        print(smp[ancillary], ancname)
         ancname = '/'.join([FLYLIGHT_ANCILLARY[ancillary], ancname])
         dirpath = os.path.dirname(smp[ancillary])
         url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
