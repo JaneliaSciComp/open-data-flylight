@@ -710,7 +710,7 @@ def upload_flylight_ancillary_files(smp, newname):
     for ancillary in FLYLIGHT_ANCILLARY:
         if ancillary not in smp:
             continue
-        print(newname, smp['ancillary'])
+        print(newname, smp[ancillary])
 
 def upload_cdms_from_file():
     ''' Upload color depth MIPs and other files to AWS S3.
