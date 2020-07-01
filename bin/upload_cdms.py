@@ -738,8 +738,6 @@ def upload_cdms_from_file():
             dirpath = os.path.dirname(smp['filepath'])
             fname = os.path.basename(smp['filepath'])
             url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
-            print(smp['imageURL'])
-            print(url)
             if url:
                 turl = produce_thumbnail(dirpath, fname, newname, url)
                 if ARG.WRITE:
