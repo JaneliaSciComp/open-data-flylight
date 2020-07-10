@@ -67,6 +67,14 @@ def get_all_s3_objects(s3c, **base_kwargs):
 
 
 def upload_to_aws(s3r, body, object_name):
+    """ Upload a file ro AWS S3
+        Keyword arguments:
+          s3r: S3 resource
+          body: JSON
+          object_name: object
+        Returns:
+          None
+    """
     if ARG.TEST:
         LOGGER.info("Would have uploaded %s", object_name)
         return
@@ -91,21 +99,27 @@ def denormalize():
     """
     #pylint: disable=no-member
     total_objects = dict()
-    sts_client = boto3.client('sts')
-    aro = sts_client.assume_role(RoleArn=AWS['role_arn'],
-                                 RoleSessionName="AssumeRoleSession1")
-    credentials = aro['Credentials']
-    s3_client = boto3.client('s3',
-                             aws_access_key_id=credentials['AccessKeyId'],
-                             aws_secret_access_key=credentials['SecretAccessKey'],
-                             aws_session_token=credentials['SessionToken'])
-    s3_resource = boto3.resource('s3',
+    if ARG.MANIFOLD == 'prod':
+        sts_client = boto3.client('sts')
+        aro = sts_client.assume_role(RoleArn=AWS['role_arn'],
+                                     RoleSessionName="AssumeRoleSession1")
+        credentials = aro['Credentials']
+        s3_client = boto3.client('s3',
                                  aws_access_key_id=credentials['AccessKeyId'],
                                  aws_secret_access_key=credentials['SecretAccessKey'],
                                  aws_session_token=credentials['SessionToken'])
+        s3_resource = boto3.resource('s3',
+                                     aws_access_key_id=credentials['AccessKeyId'],
+                                     aws_secret_access_key=credentials['SecretAccessKey'],
+                                     aws_session_token=credentials['SessionToken'])
+    else:
+        s3_client = boto3.client('s3')
+        s3_resource = boto3.resource('s3')
     prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY]) + '/'
     key_list = dict()
     separate = ['searchable_neurons']
+    if 'FlyEM' not in ARG.LIBRARY:
+        separate.extent(['gradient', 'zgap'])
     for obj in get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix):
         which = 'default'
         for searchdir in separate:
@@ -124,15 +138,17 @@ def denormalize():
         LOGGER.error("%s/%s was not found in the %s bucket", ARG.TEMPLATE, ARG.LIBRARY, ARG.BUCKET)
         sys.exit(-1)
     # Write files
-    for which in ['default', 'searchable_neurons']:
+    prefix_list = ['default'] + separate
+    for which in prefix_list:
         prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY])
         if which != 'default':
             prefix += '/' + which
         object_name = '/'.join([prefix, KEYFILE])
         print("%s objects: %d" % (which, total_objects[which]))
-        upload_to_aws(s3_resource, json.dumps(key_list, indent=4), object_name)
+        upload_to_aws(s3_resource, json.dumps(key_list[which], indent=4), object_name)
         object_name = '/'.join([prefix, COUNTFILE])
-        upload_to_aws(s3_resource, json.dumps(key_list, indent=4), object_name)
+        upload_to_aws(s3_resource, json.dumps({"objectCount": total_objects[which]}, indent=4),
+                      object_name)
 
 
 if __name__ == '__main__':
@@ -143,6 +159,10 @@ if __name__ == '__main__':
                         default='JRC2018_Unisex_20x_HR', help='Template')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='Vienna_Gen1_LexA', help='Library')
+    PARSER.add_argument('--samples', dest='SAMPLES', action='store', type=int,
+                        default=0, help='Number of samples to transfer')
+    PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
+                        default='prod', help='S3 manifold')
     PARSER.add_argument('--test', dest='TEST', action='store_true',
                         default=False, help='Test mode (do not write to bucket)')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
@@ -160,5 +180,7 @@ if __name__ == '__main__':
     HANDLER = colorlog.StreamHandler()
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
+    if ARG.MANIFOLD != 'prod':
+        ARG.BUCKET = '-'.join([ARG.BUCKET, ARG.MANIFOLD])
     initialize_program()
     denormalize()
