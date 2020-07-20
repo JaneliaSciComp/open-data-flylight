@@ -30,14 +30,14 @@ CURSOR = dict()
 GEN1_COLLECTION = ['flylight_gen1_gal4', 'flylight_gen1_lexa', 'flylight_vt_gal4_screen',
                    'flylight_vt_lexa_screen', 'flylight_gen1_mcfo_published',
                    'flylight_gen1_mcfo_case_1_gamma1_4']
-CONVERSION_REQUIRED = ['flyem_hemibrain']
+CONVERSION_REQUIRED = ['flyem_hemibrain', 'flyem_hemibrain_1_0', 'flyem_hemibrain_1_1']
 VERSION_REQUIRED = ['flyem_hemibrain']
 FLYLIGHT_ANCILLARY = {"imageGradientName": "gradient", "imageZGapName": "zgap", "searchableNeuronsName": "searchable_neurons"}
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
-         'Duplicate objects': 0}
+         'Duplicate objects': 0, 'Unparsable files': 0}
 TRANSACTIONS = dict()
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
@@ -220,12 +220,15 @@ def upload_aws(bucket, dirpath, fname, newname):
     bucket, object_name = get_s3_names(bucket, newname)
     LOGGER.debug("Uploading %s to S3 as %s", complete_fpath, object_name)
     if object_name in UPLOADED_NAME:
-        err_text = "%s was already uploaded from %s, but is now being uploaded from %s" \
-                   % (object_name, UPLOADED_NAME[object_name], complete_fpath)
-        LOGGER.error(err_text)
-        ERR.write(err_text + "\n")
-        COUNT['Duplicate objects'] += 1
-        return False
+        if complete_fpath != UPLOADED_NAME[object_name]:
+            err_text = "%s was already uploaded from %s, but is now being uploaded from %s" \
+                       % (object_name, UPLOADED_NAME[object_name], complete_fpath)
+            LOGGER.error(err_text)
+            ERR.write(err_text + "\n")
+            COUNT['Duplicate objects'] += 1
+            return False
+        else:
+            return 'Skipped'
     UPLOADED_NAME[object_name] = complete_fpath
     url = '/'.join([AWS['base_aws_url'], bucket, object_name])
     url = url.replace(' ', '+')
@@ -243,8 +246,7 @@ def upload_aws(bucket, dirpath, fname, newname):
     try:
         S3_CLIENT.upload_file(complete_fpath, bucket,
                               object_name,
-                              ExtraArgs={'ContentType': mimetype, 'ACL': 'public-read',
-                                         'Tagging': TAGS})
+                              ExtraArgs={'ContentType': mimetype, 'ACL': 'public-read'})
         #obj = S3_RESOURCE.Object(bucket, object_name)
         #obj.copy_from(CopySource={'Bucket': bucket,
         #                          'Key': object_name},
@@ -690,7 +692,7 @@ def set_name_and_filepath(smp):
         Returns:
           None
     '''
-    if ARG.LIBRARY != 'flyem_hemibrain':
+    if 'flyem' not in ARG.LIBRARY:
         smp['filepath'] = smp['cdmPath']
         smp['name'] = os.path.basename(smp['filepath'])
         return
@@ -710,16 +712,22 @@ def upload_flylight_ancillary_files(smp, newname):
         Returns:
           None
     '''
+    fbase = newname.split('.')[0]
     for ancillary in FLYLIGHT_ANCILLARY:
-        fbase = newname.split('.')[0]
         if ancillary not in smp:
             continue
-        fname, ext = smp[ancillary].split('.')
-        seq = fname.split('_')[-1]
-        fname = fname.split('.')[0]
+        fname, ext = os.path.basename(smp[ancillary]).split('.')
+        try:
+            seqsearch = re.search('_ch\d+_(\d+)', fname)
+            seq = seqsearch[1]
+        except Exception as err:
+            LOGGER.error("Could not extract sequence number from %s" % fname)
+            COUNT['Unparsable files'] += 1
+            continue
         ancname = '.'.join(['-'.join([fbase, seq]), ext])
         ancname = '/'.join([FLYLIGHT_ANCILLARY[ancillary], ancname])
         dirpath = os.path.dirname(smp[ancillary])
+        fname = os.path.basename(smp[ancillary])
         url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
 
 
@@ -748,7 +756,7 @@ def upload_cdms_from_file():
         REC['alignment_space'] = smp['alignmentSpace']
         # Primary image
         skip_primary = False
-        if ARG.LIBRARY == 'flyem_hemibrain':
+        if 'flyem' in ARG.LIBRARY:
             if 'imageArchivePath' in smp:
                 skip_primary = True
             else:
@@ -775,17 +783,18 @@ def upload_cdms_from_file():
             fname = os.path.basename(smp['filepath'])
             url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
             if url:
-                turl = produce_thumbnail(dirpath, fname, newname, url)
-                if ARG.WRITE:
-                    if ARG.LIBRARY in CONVERSION_REQUIRED:
-                        os.remove(smp['filepath'])
-                    update_jacs(smp['_id'], url, turl)
-                else:
-                    LOGGER.info(url)
+                if url != 'Skipped':
+                    turl = produce_thumbnail(dirpath, fname, newname, url)
+                    if ARG.WRITE:
+                        if ARG.LIBRARY in CONVERSION_REQUIRED:
+                            os.remove(smp['filepath'])
+                        update_jacs(smp['_id'], url, turl)
+                    else:
+                        LOGGER.info(url)
             elif ARG.WRITE:
                 LOGGER.error("Did not transfer primary image %s", fname)
         # Ancillary images
-        if ARG.LIBRARY == 'flyem_hemibrain':
+        if 'flyem' in ARG.LIBRARY:
             set_name_and_filepath(smp)
             newname = process_hemibrain(smp, False)
             if not newname:
@@ -827,7 +836,7 @@ def upload_cdms_from_api():
                 #LOGGER.warning("%s is already on AWS S3", smp['publicThumbnailUrl'])
                 continue
         REC['alignment_space'] = smp['alignmentSpace']
-        if ARG.LIBRARY == 'flyem_hemibrain':
+        if 'flyem' in ARG.LIBRARY:
             newname = process_hemibrain(smp)
             if not newname:
                 continue
