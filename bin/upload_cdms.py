@@ -712,22 +712,23 @@ def upload_flylight_ancillary_files(smp, newname):
         Returns:
           None
     '''
+    if 'variants' not in smp:
+        LOGGER.warning("No variants for %s", smp['name'])
+        return
     fbase = newname.split('.')[0]
-    for ancillary in FLYLIGHT_ANCILLARY:
-        if ancillary not in smp:
-            continue
-        fname, ext = os.path.basename(smp[ancillary]).split('.')
+    for ancillary in smp['variants']:
+        fname, ext = os.path.basename(smp['variants'][ancillary]).split('.')
         try:
-            seqsearch = re.search('_ch\d+_(\d+)', fname)
+            seqsearch = re.search('-CH\d+-(\d+)', fname)
             seq = seqsearch[1]
         except Exception as err:
             LOGGER.error("Could not extract sequence number from %s" % fname)
             COUNT['Unparsable files'] += 1
             continue
         ancname = '.'.join(['-'.join([fbase, seq]), ext])
-        ancname = '/'.join([FLYLIGHT_ANCILLARY[ancillary], ancname])
-        dirpath = os.path.dirname(smp[ancillary])
-        fname = os.path.basename(smp[ancillary])
+        ancname = '/'.join([ancillary, ancname])
+        dirpath = os.path.dirname(smp['variants'][ancillary])
+        fname = os.path.basename(smp['variants'][ancillary])
         url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
 
 
@@ -772,7 +773,7 @@ def upload_cdms_from_file():
             set_name_and_filepath(smp)
             newname = process_light(smp, mapping, driver, release)
             if not newname:
-                err_text = "No publishing name for FlyEM %s" % smp['name']
+                err_text = "No publishing name for FlyLight %s" % smp['name']
                 LOGGER.error(err_text)
                 ERR.write(err_text + "\n")
                 continue
