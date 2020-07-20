@@ -575,7 +575,7 @@ def process_light(smp, mapping, driver, release):
         PNAME[publishing_name] = 1
     else:
         PNAME[publishing_name] += 1
-    print(sdata[0]['line'], publishing_name, smp['_id'], smp['filepath'].split('/')[-1]) #PLUG
+    #print(sdata[0]['line'], publishing_name, smp['_id'], smp['filepath'].split('/')[-1]) #PLUG
     REC['line'] = publishing_name
     #REC['slide_code'] = translate_slide_code(sdata[0]['slideCode'], sdata[0]['line'])
     REC['slide_code'] = sdata[0]['slideCode']
@@ -744,13 +744,15 @@ def upload_cdms_from_file():
     jfile = open(ARG.JSON, 'r')
     data = json.load(jfile)
     jfile.close()
+    entries = len(data)
+    LOGGER.info("Number of entries in JSON: %d", entries)
     for smp in data:
         smp['_id'] = smp['id']
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
         if not COUNT['Samples'] % 1000:
-            print(COUNT['Samples'])
+            print("Samples: %d (%.2f%%)" % (COUNT['Samples'], COUNT['Samples'] / entries  * 100.0))
         if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
             COUNT['Already on JACS'] += 1
             continue
