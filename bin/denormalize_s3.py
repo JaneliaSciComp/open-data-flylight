@@ -117,18 +117,14 @@ def denormalize():
         s3_resource = boto3.resource('s3')
     prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY]) + '/'
     key_list = dict()
-    separate = ['searchable_neurons']
-    if 'FlyEM' not in ARG.LIBRARY:
-        separate.extent(['gradient', 'zgap'])
     for obj in get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix):
-        which = 'default'
-        for searchdir in separate:
-            if searchdir in obj['Key']:
-                which = searchdir
-                continue
         if KEYFILE in obj['Key'] or COUNTFILE in obj['Key']:
             continue
-        LOGGER.info(obj['Key'])
+        which = 'default'
+        LOGGER.debug(obj['Key'])
+        splitkey = obj['Key'].split('/')
+        if len(splitkey) == 4:
+            which = splitkey[-2]
         if which not in key_list:
             key_list[which] = list()
             total_objects[which] = 0
@@ -138,8 +134,7 @@ def denormalize():
         LOGGER.error("%s/%s was not found in the %s bucket", ARG.TEMPLATE, ARG.LIBRARY, ARG.BUCKET)
         sys.exit(-1)
     # Write files
-    prefix_list = ['default'] + separate
-    for which in prefix_list:
+    for which in key_list.keys():
         prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY])
         if which != 'default':
             prefix += '/' + which
