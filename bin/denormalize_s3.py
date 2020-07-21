@@ -134,7 +134,7 @@ def denormalize():
         LOGGER.error("%s/%s was not found in the %s bucket", ARG.TEMPLATE, ARG.LIBRARY, ARG.BUCKET)
         sys.exit(-1)
     # Write files
-    for which in key_list.keys():
+    for which in key_list:
         prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY])
         if which != 'default':
             prefix += '/' + which
@@ -147,7 +147,7 @@ def denormalize():
 
 
 if __name__ == '__main__':
-    PARSER = argparse.ArgumentParser(description="Find bucket size")
+    PARSER = argparse.ArgumentParser(description="Produce denormalization files")
     PARSER.add_argument('--bucket', dest='BUCKET', action='store',
                         default='janelia-flylight-color-depth', help='AWS S3 bucket')
     PARSER.add_argument('--template', dest='TEMPLATE', action='store',
