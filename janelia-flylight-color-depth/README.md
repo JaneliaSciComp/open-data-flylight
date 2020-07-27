@@ -66,8 +66,15 @@ Examples:
 This area contains zip archives of alignment imagery. The file names are freeform. Names and descriptions follow:
 | File name | Description |
 | --------- | ----------- |
+| 40x_MCFO_release_gamma14_PackBits.zip | description |
+| 40x_MCFO_release_PackBits_06052020.zip | description :
+| EM_Hemibrain11_0630_2020_radi2_PackBits_noNeuronName.zip | description |
+| EM_Hemibrain11_0630_2020_radi2_PackBits_withNeuronName.zip | description |
+| Gen1_GAL4_R_VT_JRC2018U_PackBits.zip | description |
 | Gen1_GAL4_VNC.zip | description|
 | Gen1_LexA_VT_R_JRC2018U.zip | description |
+| Hemibrain1.1_SWC_Skeleton | description |
+| JRC2018_UNISEX_20x_HR.nrrd | description |
 | Larva_Segmented_GAL4_CDM.zip | description |
 | Larva_original_GAL4_CDM.zip | description |
 |LexA_VNC.zip | description |
