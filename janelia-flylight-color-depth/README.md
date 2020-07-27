@@ -66,7 +66,6 @@ Examples:
 This area contains zip archives of alignment imagery. The file names are freeform. Names and descriptions follow.
 
 #### Brain
-
 * Gen1_GAL4_R_VT_JRC2018U_PackBits.zip: 55,814 color depth MIPs (CDMs) of the Gen1 GAL4 brain; R and VT lines that are aligned to the JFRC2018 unisex template.
 * Gen1_LexA_VT_R_JRC2018U.zip : 11,634 CDMs of the Gen1 LexA brain; R and VT lines that are aligned to the JFRC2018 unisex template.
 * 40x_MCFO_release_PackBits_06052020.zip: 80,812 released MCFO GAL4 CDM that are aligned to the JFRC2018 unisex template. 
@@ -74,15 +73,15 @@ This area contains zip archives of alignment imagery. The file names are freefor
 * EM_Hemibrain11_0630_2020_radi2_PackBits_noNeuronName.zip: 32,777 CDM from the JFRC2018 unisex template aligned EM-hemibrain. The CDM file name has the EM-body ID and tracing state.
 * EM_Hemibrain11_0630_2020_radi2_PackBits_withNeuronName.zip: 32,777 CDM from the JFRC2018 unisex template aligned EM-hemibrain. The CDM file name has the EM-body ID, neuron name, and tracing state. This set requires newly released (ver. July 2020) [CDM search Fiji plugin](https://github.com/JaneliaSciComp/ColorMIP_Mask_Search/blob/master/Color_MIP_Mask_Search.jar).
 * Hemibrain1.1_SWC_Skeleton: 32,777 SWC files translated to the JRC2018 unisex template space. These files can opened in [VVDviewer 3D/4D rendering software](https://github.com/takashi310/VVD_Viewer/releases) to overlay with LM data (.h5j files from [FlyLight website](https://www.janelia.org/project-team/flylight)).
+* JRC2018_UNISEX_20x_HR.nrrd: The [template](https://www.janelia.org/publication/an-unbiased-template-of-the-drosophila-brain-and-ventral-nerve-cord) used for all brain CDM alignments.
 
-| File name | Description |
-| --------- | ----------- |
-| Gen1_GAL4_VNC.zip | description|
-| Hemibrain1.1_SWC_Skeleton | description |
-| JRC2018_UNISEX_20x_HR.nrrd | description |
-| Larva_Segmented_GAL4_CDM.zip | description |
-| Larva_original_GAL4_CDM.zip | description |
-|LexA_VNC.zip | description |
+#### VNC
+* Gen1_GAL4_VNC.zip
+* LexA_VNC.zip
+
+#### Larval brain
+* Larva_original_GAL4_CDM.zip
+* Larva_Segmented_GAL4_CDM.zip
 
 
 [^otsuna]: Otsuna, H., Ito, M., & Kawase, T. Color depth MIP mask search: a new tool to expedite Split-GAL4 creation. bioRxiv. 2018: 318006. DOI: [10.1101/318006](https://doi.org/10.1101/318006)
