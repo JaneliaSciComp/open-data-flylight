@@ -21,7 +21,10 @@ The forthcoming *NeuronBridge* tool, built on AWS Lambda, will make this tool av
     * `<alignment space>`
         * `<library name>`
             * _color depth MIP files (PNG)_
+    * Color_Depth_MIPs_For_Download
 
+
+### `<alignment space>`
 
 FlyLight file names contain metadata as follows:
 ```
@@ -57,5 +60,17 @@ Fly EM file names contain metadata as follows:
 
 Examples:
 * **FlyEM Hemibrain v1.0**: 1038964771-RT-JRC2018_Unisex_20x_HR-CDM.png
+
+### Color_Depth_MIPs_For_Download
+
+This area contains zip archives of alignment imagery. The file names are freeform. Names and descriptions follow:
+| File name | Description |
+| --------- | ----------- |
+| Gen1_GAL4_VNC.zip | description|
+| Gen1_LexA_VT_R_JRC2018U.zip | description |
+| Larva_Segmented_GAL4_CDM.zip | description |
+| Larva_original_GAL4_CDM.zip | description |
+|LexA_VNC.zip | description |
+
 
 [^otsuna]: Otsuna, H., Ito, M., & Kawase, T. Color depth MIP mask search: a new tool to expedite Split-GAL4 creation. bioRxiv. 2018: 318006. DOI: [10.1101/318006](https://doi.org/10.1101/318006)
