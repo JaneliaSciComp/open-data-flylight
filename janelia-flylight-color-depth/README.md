@@ -76,12 +76,12 @@ This area contains zip archives of alignment imagery. The file names are freefor
 * JRC2018_UNISEX_20x_HR.nrrd: The [template](https://www.janelia.org/publication/an-unbiased-template-of-the-drosophila-brain-and-ventral-nerve-cord) used for all brain CDM alignments.
 
 #### VNC
-* Gen1_GAL4_VNC.zip
-* LexA_VNC.zip
+* Gen1_GAL4_VNC.zip: 13,998 CDMs of the Gen1 GAL4 VNC, R and VT lines. These are aligned to the 2017 female flyVNC symmetric template. 
+* LexA_VNC.zip: 3,534 CDMs of the Gen1 LexA VNC, R and VT lines. These are aligned to the 2017 female flyVNC symmetric template.
 
 #### Larval brain
-* Larva_original_GAL4_CDM.zip
-* Larva_Segmented_GAL4_CDM.zip
+* Larva_original_GAL4_CDM.zip: 5,766 CDMs from Hen1 GAL4 FlyLight scanned larval brain. The alignment is from this work: [https://link.springer.com/article/10.1007/s12021-017-9349-6].
+* Larva_Segmented_GAL4_CDM.zip: The 3D segmented aligned larval brain - 30,292 CDMs with 2D gradient map (original data before the segmentation in “Larva_original_GAL4_CDM.zip"). These CDMs have 0 background value, and provide a more accurate CDM search than the originals.
 
 
 [^otsuna]: Otsuna, H., Ito, M., & Kawase, T. Color depth MIP mask search: a new tool to expedite Split-GAL4 creation. bioRxiv. 2018: 318006. DOI: [10.1101/318006](https://doi.org/10.1101/318006)
