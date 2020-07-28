@@ -63,7 +63,7 @@ Examples:
 
 ### Color_Depth_MIPs_For_Download
 
-This area contains zip archives of alignment imagery. Files in FlyEM archives are named ad seen below in the "EM_Hemibrain" items. For FlyLight imagery, the file name contains Line name, slide code and gender. In the case of VT lines from Vienna, the file name have line name and genotype. Note that the [CDM search Fiji plugin](https://github.com/JaneliaSciComp/ColorMIP_Mask_Search/blob/master/Color_MIP_Mask_Search.jar) can recognize the line names to avoiding duplicate hits. Archive names and descriptions follow.
+This area contains zip archives of alignment imagery. Files in FlyEM archives are named ad seen below in the "EM_Hemibrain" items. For FlyLight imagery, the file name contains Line name, slide code and gender. In the case of VT lines confocal scanned in Vienna, the file name have line name and genotype. Note that the [CDM search Fiji plugin](https://github.com/JaneliaSciComp/ColorMIP_Mask_Search/blob/master/Color_MIP_Mask_Search.jar) can recognize the line names to avoiding duplicate hits. Archive names and descriptions follow.
 
 #### Brain
 * Gen1_GAL4_R_VT_JRC2018U_PackBits.zip: 55,814 color depth MIPs (CDMs) of the Gen1 GAL4 brain; R and VT lines that are aligned to the JFRC2018 unisex template. All images are from female flies. 
