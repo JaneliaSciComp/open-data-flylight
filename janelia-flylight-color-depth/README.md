@@ -63,7 +63,7 @@ Examples:
 
 ### Color_Depth_MIPs_For_Download
 
-This area contains zip archives of alignment imagery. The archive file names are freeform. Names and descriptions follow.
+This area contains zip archives of alignment imagery. The archive file names are freeform. Names of files in the archive will start with either a body ID (Hemibrain) or a line (all others). Names and descriptions follow.
 
 #### Brain
 * Gen1_GAL4_R_VT_JRC2018U_PackBits.zip: 55,814 color depth MIPs (CDMs) of the Gen1 GAL4 brain; R and VT lines that are aligned to the JFRC2018 unisex template.
