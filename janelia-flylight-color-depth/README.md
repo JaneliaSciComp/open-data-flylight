@@ -1,6 +1,6 @@
 # FlyLight Color Depth MIPs
 
-Part of the [Janelia FlyLight Imagery](https://open.quiltdata.com/b/janelia-flylight-imagery) open data set.
+Part of the [Janelia FlyLight Imagery](https://data.janelia.org/3N5DS) open data set.
 
 This bucket contains Color Depth MIPs for all the published FlyLight and [https://www.janelia.org/project-team/flyem](FlyEM) imagery, divided into libraries:
 | Library              | # images |
@@ -13,7 +13,7 @@ This bucket contains Color Depth MIPs for all the published FlyLight and [https:
 
 The color depth mask search technique, published in Otsuna, et. al[^otsuna], enables rapid and scalable 2d mask search across many terabytes of 3d data. Most importantly, it can be used to search from LM to EM and vice-versa, enabling cross-modal correspondence. 
 
-The [*NeuronBridge*](https://neuronbridge.janelia.org/) tool, built on AWS Lambda, makes these Color Depth MIPs available via a web application. These are also available on [Quilt](https://open.quiltdata.com/b/janelia-flylight-color-depth/tree). 
+The [*NeuronBridge*](https://neuronbridge.janelia.org/) tool, built on AWS Lambda, makes these Color Depth MIPs available via a web application. These are also available on [Quilt](https://data.janelia.org/oUjg4). 
 
 ## Bucket Structure
 
@@ -63,7 +63,7 @@ Examples:
 
 ### Color_Depth_MIPs_For_Download
 
-This area contains zip archives of alignment imagery. Files in FlyEM archives are named ad seen below in the "EM_Hemibrain" items. For FlyLight imagery, the file name contains Line name, slide code and gender. In the case of VT lines confocal scanned in Vienna, the file name have line name and genotype. Note that the [CDM search Fiji plugin](https://github.com/JaneliaSciComp/ColorMIP_Mask_Search/blob/master/Color_MIP_Mask_Search.jar) can recognize the line names to avoiding duplicate hits. Files are available on [Quilt](https://open.quiltdata.com/b/janelia-flylight-color-depth/tree/Color_Depth_MIPs_For_Download/). Archive names and descriptions follow.
+This area contains zip archives of alignment imagery. Files in FlyEM archives are named ad seen below in the "EM_Hemibrain" items. For FlyLight imagery, the file name contains Line name, slide code and gender. In the case of VT lines confocal scanned in Vienna, the file name have line name and genotype. Note that the [CDM search Fiji plugin](https://github.com/JaneliaSciComp/ColorMIP_Mask_Search/blob/master/Color_MIP_Mask_Search.jar) can recognize the line names to avoiding duplicate hits. Files are available on [Quilt](https://data.janelia.org/NLzbo). Archive names and descriptions follow.
 
 #### Brain
 * Gen1_GAL4_R_VT_JRC2018U_PackBits.zip: 55,814 color depth MIPs (CDMs) of the Gen1 GAL4 brain; R and VT lines that are aligned to the JFRC2018 unisex template. All images are from female flies. 
