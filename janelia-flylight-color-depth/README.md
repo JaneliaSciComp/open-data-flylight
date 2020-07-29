@@ -13,7 +13,7 @@ This bucket contains Color Depth MIPs for all the published FlyLight and [https:
 
 The color depth mask search technique, published in Otsuna, et. al[^otsuna], enables rapid and scalable 2d mask search across many terabytes of 3d data. Most importantly, it can be used to search from LM to EM and vice-versa, enabling cross-modal correspondence. 
 
-The [*NeuronBridge*](https://neuronbridge.janelia.org/) tool, built on AWS Lambda, will make this tool available as a web application. These are also available on [Quilt](https://open.quiltdata.com/b/janelia-flylight-color-depth/tree). 
+The [*NeuronBridge*](https://neuronbridge.janelia.org/) tool, built on AWS Lambda, makes these Color Depth MIPs available via a web application. These are also available on [Quilt](https://open.quiltdata.com/b/janelia-flylight-color-depth/tree). 
 
 ## Bucket Structure
 
