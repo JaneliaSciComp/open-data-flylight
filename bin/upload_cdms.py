@@ -32,7 +32,6 @@ GEN1_COLLECTION = ['flylight_gen1_gal4', 'flylight_gen1_lexa', 'flylight_vt_gal4
                    'flylight_gen1_mcfo_case_1_gamma1_4']
 CONVERSION_REQUIRED = ['flyem_hemibrain', 'flyem_hemibrain_1_0', 'flyem_hemibrain_1_1']
 VERSION_REQUIRED = ['flyem_hemibrain']
-FLYLIGHT_ANCILLARY = {"imageGradientName": "gradient", "imageZGapName": "zgap", "searchableNeuronsName": "searchable_neurons"}
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
@@ -772,6 +771,9 @@ def upload_cdms_from_file():
                     COUNT['No publishing name'] += 1
                     continue
         else:
+            if 'variants' in smp and ARG.GAMMA in smp['variants']:
+                smp['cdmPath'] = smp['variants'][ARG.GAMMA]
+                del smp['variants'][ARG.GAMMA]
             set_name_and_filepath(smp)
             newname = process_light(smp, mapping, driver, release)
             if not newname:
@@ -898,6 +900,8 @@ if __name__ == '__main__':
                         help='JSON file')
     PARSER.add_argument('--release', dest='RELEASE', action='store',
                         help='ALPS release')
+    PARSER.add_argument('--gamma', dest='GAMMA', action='store',
+                        default='gamma14', help='Variant key for gamma image to replace cdmPath')
     PARSER.add_argument('--rewrite', dest='REWRITE', action='store_true',
                         default=False,
                         help='Flag, Update image in AWS and on JACS')
