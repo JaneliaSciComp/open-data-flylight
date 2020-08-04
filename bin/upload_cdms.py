@@ -44,6 +44,7 @@ S3_CLIENT = S3_RESOURCE = ''
 MAX_SIZE = 500
 CREATE_THUMBNAIL = False
 S3_SECONDS = 60 * 60 * 12
+ANCILLARY_UPLOADS = dict()
 COUNTFILE = "counts_denormalized.json"
 KEYFILE = "keys_denormalized.json"
 UPLOADED_NAME = dict()
@@ -227,6 +228,7 @@ def upload_aws(bucket, dirpath, fname, newname):
             COUNT['Duplicate objects'] += 1
             return False
         else:
+            COUNT['Duplicate objects'] += 1
             return 'Skipped'
     UPLOADED_NAME[object_name] = complete_fpath
     url = '/'.join([AWS['base_aws_url'], bucket, object_name])
@@ -729,6 +731,10 @@ def upload_flylight_ancillary_files(smp, newname):
         dirpath = os.path.dirname(smp['variants'][ancillary])
         fname = os.path.basename(smp['variants'][ancillary])
         url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
+        if ancillary not in ANCILLARY_UPLOADS:
+            ANCILLARY_UPLOADS[ancillary] = 1
+        else:
+            ANCILLARY_UPLOADS[ancillary] += 1
 
 
 def upload_cdms_from_file():
@@ -901,7 +907,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--release', dest='RELEASE', action='store',
                         help='ALPS release')
     PARSER.add_argument('--gamma', dest='GAMMA', action='store',
-                        default='gamma14', help='Variant key for gamma image to replace cdmPath')
+                        default='gamma1_4', help='Variant key for gamma image to replace cdmPath')
     PARSER.add_argument('--rewrite', dest='REWRITE', action='store_true',
                         default=False,
                         help='Flag, Update image in AWS and on JACS')
@@ -952,6 +958,10 @@ if __name__ == '__main__':
     ERR.close()
     for key in sorted(COUNT):
         print("%-20s %d" % (key + ':', COUNT[key]))
+    if ANCILLARY_UPLOADS:
+        print('Uploaded variants:')
+        for key in sorted(ANCILLARY_UPLOADS):
+            print("  %-20s %d" % (key + ':', ANCILLARY_UPLOADS[key]))
     for fpath in [ERR_FILE]:
         if not os.path.getsize(fpath):
             os.remove(fpath)
