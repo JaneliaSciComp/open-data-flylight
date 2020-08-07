@@ -234,6 +234,7 @@ def upload_aws(bucket, dirpath, fname, newname):
     url = '/'.join([AWS['base_aws_url'], bucket, object_name])
     url = url.replace(' ', '+')
     KEY_LIST.append(object_name)
+    S3CP.write("%s\t%s|n" % (complete_fpath, '/'.join(bucket, object_name)))
     if not ARG.WRITE:
         LOGGER.info(object_name)
         COUNT['Amazon S3 uploads'] += 1
@@ -942,8 +943,11 @@ if __name__ == '__main__':
 
     TAGS = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
            + 'VERSION=' + __version__
-    ERR_FILE = 'upload_cdms_errors_%s.txt' % (strftime("%Y%m%dT%H%M%S"))
+    STAMP = strftime("%Y%m%dT%H%M%S")
+    ERR_FILE = 'upload_cdms_errors_%s.txt' % STAMP
     ERR = open(ERR_FILE, 'w')
+    S3CP_FILE = 'upload_cdms_s3cp_%s.txt' % STAMP
+    S3CP = open(S3CP_FILE, 'w')
 
     if ARG.LIBRARY == 'flylight_splitgal4_drivers':
         DATABASE = 'mbew'
@@ -956,6 +960,7 @@ if __name__ == '__main__':
     STOP_TIME = datetime.now()
     print("Elapsed time: %s" %  (STOP_TIME - START_TIME))
     ERR.close()
+    S3CP.close()
     for key in sorted(COUNT):
         print("%-20s %d" % (key + ':', COUNT[key]))
     if ANCILLARY_UPLOADS:
