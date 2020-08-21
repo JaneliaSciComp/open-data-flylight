@@ -234,7 +234,9 @@ def upload_aws(bucket, dirpath, fname, newname):
     url = '/'.join([AWS['base_aws_url'], bucket, object_name])
     url = url.replace(' ', '+')
     KEY_LIST.append(object_name)
-    S3CP.write("%s\t%s|n" % (complete_fpath, '/'.join(bucket, object_name)))
+    S3CP.write("%s\t%s\n" % (complete_fpath, '/'.join([bucket, object_name])))
+    if not ARG.AWS:
+        return url
     if not ARG.WRITE:
         LOGGER.info(object_name)
         COUNT['Amazon S3 uploads'] += 1
@@ -912,6 +914,12 @@ if __name__ == '__main__':
     PARSER.add_argument('--rewrite', dest='REWRITE', action='store_true',
                         default=False,
                         help='Flag, Update image in AWS and on JACS')
+    PARSER.add_argument('--aws', dest='AWS', action='store_true',
+                        default=False, help='Write files to AWS')
+    PARSER.add_argument('--samples', dest='SAMPLES', action='store', type=int,
+                        default=0, help='Number of samples to transfer')
+    PARSER.add_argument('--version', dest='VERSION', action='store',
+                        default='1.0', help='EM Version')
     PARSER.add_argument('--check', dest='CHECK', action='store_true',
                         default=False,
                         help='Flag, Check for previous AWS upload')
@@ -919,11 +927,7 @@ if __name__ == '__main__':
                         default='prod', help='S3 manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False,
-                        help='Flag, Actually write to AWS/JACS')
-    PARSER.add_argument('--samples', dest='SAMPLES', action='store', type=int,
-                        default=0, help='Number of samples to transfer')
-    PARSER.add_argument('--version', dest='VERSION', action='store',
-                        default='1.0', help='EM Version')
+                        help='Flag, Actually write to JACS (and AWS if flag set)')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
                         default=False, help='Flag, Chatty')
     PARSER.add_argument('--debug', dest='DEBUG', action='store_true',
