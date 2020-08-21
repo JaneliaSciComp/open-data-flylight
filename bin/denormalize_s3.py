@@ -154,8 +154,6 @@ if __name__ == '__main__':
                         default='JRC2018_Unisex_20x_HR', help='Template')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='Vienna_Gen1_LexA', help='Library')
-    PARSER.add_argument('--samples', dest='SAMPLES', action='store', type=int,
-                        default=0, help='Number of samples to transfer')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', help='S3 manifold')
     PARSER.add_argument('--test', dest='TEST', action='store_true',
