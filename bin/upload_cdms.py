@@ -205,13 +205,14 @@ def get_s3_names(bucket, newname):
     return bucket, object_name
 
 
-def upload_aws(bucket, dirpath, fname, newname):
+def upload_aws(bucket, dirpath, fname, newname, force=False):
     ''' Transfer a file to Amazon S3
         Keyword arguments:
           bucket: S3 bucket
           dirpath: source directory
           fname: file name
           newname: new file name
+          force: force upload (regardless of AWS parm)
         Returns:
           url
     '''
@@ -235,7 +236,7 @@ def upload_aws(bucket, dirpath, fname, newname):
     url = url.replace(' ', '+')
     KEY_LIST.append(object_name)
     S3CP.write("%s\t%s\n" % (complete_fpath, '/'.join([bucket, object_name])))
-    if not ARG.AWS:
+    if (not ARG.AWS) and (not force):
         return url
     if not ARG.WRITE:
         LOGGER.info(object_name)
@@ -295,6 +296,7 @@ def publishing_name_mapping():
           mapping dictionary
     '''
     mapping = dict()
+    use_db = DATABASE
     if '_vt_' in ARG.LIBRARY or ARG.LIBRARY == 'flylight_gen1_mcfo_published':
         data = call_responder('config', 'config/vt_conversion')
         vtm = data['config']
@@ -303,16 +305,19 @@ def publishing_name_mapping():
     else:
         if ARG.LIBRARY == 'flylight_splitgal4_drivers':
             stmt = "SELECT DISTINCT published_to,original_line,line FROM image_data_mv"
-            lkey = 'original_line'
-            mapcol = 'line'
+            # There are issues with Lateral Horn
+            stmt = "SELECT DISTINCT published_to,line,publishing_name FROM image_data_mv WHERE published_to='Split GAL4' AND publishing_name IS NOT NULL"
+            lkey = 'line'
+            mapcol = 'publishing_name'
+            use_db = 'sage'
         else:
             stmt = "SELECT DISTINCT published_to,line,publishing_name FROM image_data_mv " \
                    + "WHERE published_to IS NOT NULL"
             lkey = 'line'
             mapcol = 'publishing_name'
         try:
-            CURSOR[DATABASE].execute(stmt)
-            rows = CURSOR[DATABASE].fetchall()
+            CURSOR[use_db].execute(stmt)
+            rows = CURSOR[use_db].fetchall()
         except MySQLdb.Error as err:
             sql_error(err)
         for row in rows:
@@ -708,8 +713,33 @@ def set_name_and_filepath(smp):
         smp['name'] = os.path.basename(smp['filepath'])
 
 
+def upload_flyem_ancillary_files(smp, newname):
+    ''' Upload variant files for FlyEM
+        Keyword arguments:
+          smp: sample record
+          newname: computed filename
+        Returns:
+          None
+    '''
+    if 'variants' not in smp:
+        LOGGER.warning("No variants for %s", smp['name'])
+        return
+    fbase = newname.split('.')[0]
+    for ancillary in smp['variants']:
+        fname, ext = os.path.basename(smp['variants'][ancillary]).split('.')
+        ancname = '.'.join([fbase, ext])
+        ancname = '/'.join([ancillary, ancname])
+        dirpath = os.path.dirname(smp['variants'][ancillary])
+        fname = os.path.basename(smp['variants'][ancillary])
+        url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
+        if ancillary not in ANCILLARY_UPLOADS:
+            ANCILLARY_UPLOADS[ancillary] = 1
+        else:
+            ANCILLARY_UPLOADS[ancillary] += 1
+
+
 def upload_flylight_ancillary_files(smp, newname):
-    ''' Determine a sample's name and filepath
+    ''' Upload variant files for FlyLight
         Keyword arguments:
           smp: sample record
           newname: computed filename
@@ -753,7 +783,7 @@ def upload_cdms_from_file():
     data = json.load(jfile)
     jfile.close()
     entries = len(data)
-    LOGGER.info("Number of entries in JSON: %d", entries)
+    print("Number of entries in JSON: %d" % entries)
     for smp in data:
         smp['_id'] = smp['id']
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
@@ -768,7 +798,7 @@ def upload_cdms_from_file():
         # Primary image
         skip_primary = False
         if 'flyem' in ARG.LIBRARY:
-            if 'imageArchivePath' in smp:
+            if 'imageArchivePathPLUG' in smp:
                 skip_primary = True
             else:
                 set_name_and_filepath(smp)
@@ -795,7 +825,10 @@ def upload_cdms_from_file():
         if not skip_primary:
             dirpath = os.path.dirname(smp['filepath'])
             fname = os.path.basename(smp['filepath'])
-            url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+            force = False
+            if 'flyem' in ARG.LIBRARY and not ARG.AWS:
+                force = True
+            url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname, force)
             if url:
                 if url != 'Skipped':
                     turl = produce_thumbnail(dirpath, fname, newname, url)
@@ -813,10 +846,11 @@ def upload_cdms_from_file():
             newname = process_hemibrain(smp, False)
             if not newname:
                 continue
-            newname = 'searchable_neurons/' + newname
-            dirpath = os.path.dirname(smp['filepath'])
-            fname = os.path.basename(smp['filepath'])
-            url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+            upload_flyem_ancillary_files(smp, newname)
+            #newname = 'searchable_neurons/' + newname
+            #dirpath = os.path.dirname(smp['filepath'])
+            #fname = os.path.basename(smp['filepath'])
+            #url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
         else:
             upload_flylight_ancillary_files(smp, newname)
 
