@@ -10,11 +10,12 @@ import colorlog
 import boto3
 from botocore.exceptions import ClientError
 import requests
+from simple_term_menu import TerminalMenu
 
 __version__ = '1.1.0'
 # Configuration
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
-AWS = dict()
+AWS = CDM = dict()
 KEYFILE = "keys_denormalized.json"
 COUNTFILE = "counts_denormalized.json"
 TAGS = 'PROJECT=CDCS&STAGE=prod&DEVELOPER=svirskasr&VERSION=%s' % (__version__)
@@ -41,11 +42,13 @@ def call_responder(server, endpoint):
 def initialize_program():
     """ Initialize
     """
-    global AWS, CONFIG # pylint: disable=W0603
+    global AWS, CDM, CONFIG # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
     data = call_responder('config', 'config/aws')
     AWS = data['config']
+    data = call_responder('config', 'config/cdm_libraries')
+    CDM = data['config']
 
 
 def get_all_s3_objects(s3c, **base_kwargs):
@@ -76,7 +79,7 @@ def upload_to_aws(s3r, body, object_name):
           None
     """
     if ARG.TEST:
-        LOGGER.info("Would have uploaded %s", object_name)
+        LOGGER.warning("Would have uploaded %s", object_name)
         return
     LOGGER.info("Uploading %s", object_name)
     try:
@@ -90,14 +93,36 @@ def upload_to_aws(s3r, body, object_name):
         LOGGER.error(str(err))
 
 
+def get_library():
+    """ Query the user for the CDM library
+        Keyword arguments:
+            None
+        Returns:
+            None
+    """
+    print("Select a library:")
+    cdmlist = list()
+    for cdmlib in CDM:
+        if CDM[cdmlib] not in cdmlist:
+            cdmlist.append(CDM[cdmlib])
+    terminal_menu = TerminalMenu(cdmlist)
+    chosen = terminal_menu.show()
+    if chosen is None:
+        LOGGER.error("No library selected")
+        sys.exit(0)
+    ARG.LIBRARY = cdmlist[chosen].replace(' ', '_')
+
+
 def denormalize():
-    """ Denormalize a buckek into a JSON file
+    """ Denormalize a bucket into a JSON file
         Keyword arguments:
           None
         Returns:
           None
     """
     #pylint: disable=no-member
+    if not ARG.LIBRARY:
+        get_library()
     total_objects = dict()
     if ARG.MANIFOLD == 'prod':
         sts_client = boto3.client('sts')
@@ -117,6 +142,7 @@ def denormalize():
         s3_resource = boto3.resource('s3')
     prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY]) + '/'
     key_list = dict()
+    print("Processing %s on %s manifold" % (ARG.LIBRARY, ARG.MANIFOLD))
     for obj in get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix):
         if KEYFILE in obj['Key'] or COUNTFILE in obj['Key']:
             continue
@@ -153,7 +179,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--template', dest='TEMPLATE', action='store',
                         default='JRC2018_Unisex_20x_HR', help='Template')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
-                        default='Vienna_Gen1_LexA', help='Library')
+                        default='', help='Library')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
                         default='prod', help='S3 manifold')
     PARSER.add_argument('--test', dest='TEST', action='store_true',
