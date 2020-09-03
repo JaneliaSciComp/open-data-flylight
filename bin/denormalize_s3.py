@@ -93,24 +93,34 @@ def upload_to_aws(s3r, body, object_name):
         LOGGER.error(str(err))
 
 
-def get_library():
-    """ Query the user for the CDM library
+def get_parms():
+    """ Query the user for the CDM library and manifold
         Keyword arguments:
             None
         Returns:
             None
     """
-    print("Select a library:")
-    cdmlist = list()
-    for cdmlib in CDM:
-        if CDM[cdmlib] not in cdmlist:
-            cdmlist.append(CDM[cdmlib])
-    terminal_menu = TerminalMenu(cdmlist)
-    chosen = terminal_menu.show()
-    if chosen is None:
-        LOGGER.error("No library selected")
-        sys.exit(0)
-    ARG.LIBRARY = cdmlist[chosen].replace(' ', '_')
+    if not ARG.LIBRARY:
+        print("Select a library:")
+        cdmlist = list()
+        for cdmlib in CDM:
+            if CDM[cdmlib] not in cdmlist:
+                cdmlist.append(CDM[cdmlib])
+        terminal_menu = TerminalMenu(cdmlist)
+        chosen = terminal_menu.show()
+        if chosen is None:
+            LOGGER.error("No library selected")
+            sys.exit(0)
+        ARG.LIBRARY = cdmlist[chosen].replace(' ', '_')
+    if not ARG.MANIFOLD:
+        print("Select manifold to run on:")
+        manifold = ['dev', 'prod']
+        terminal_menu = TerminalMenu(manifold)
+        chosen = terminal_menu.show()
+        if chosen is None:
+            LOGGER.error("No manifold selected")
+            sys.exit(0)
+        ARG.MANIFOLD = manifold[chosen]
 
 
 def denormalize():
@@ -121,8 +131,9 @@ def denormalize():
           None
     """
     #pylint: disable=no-member
-    if not ARG.LIBRARY:
-        get_library()
+    get_parms()
+    if ARG.MANIFOLD != 'prod':
+        ARG.BUCKET = '-'.join([ARG.BUCKET, ARG.MANIFOLD])
     total_objects = dict()
     if ARG.MANIFOLD == 'prod':
         sts_client = boto3.client('sts')
@@ -181,7 +192,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='Library')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='prod', help='S3 manifold')
+                        default='', help='S3 manifold')
     PARSER.add_argument('--test', dest='TEST', action='store_true',
                         default=False, help='Test mode (do not write to bucket)')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
@@ -199,7 +210,5 @@ if __name__ == '__main__':
     HANDLER = colorlog.StreamHandler()
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
-    if ARG.MANIFOLD != 'prod':
-        ARG.BUCKET = '-'.join([ARG.BUCKET, ARG.MANIFOLD])
     initialize_program()
     denormalize()
