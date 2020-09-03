@@ -4,6 +4,7 @@ __version__ = '1.0.0'
 
 import argparse
 from datetime import datetime
+import glob
 import json
 import os
 import re
@@ -15,12 +16,14 @@ from botocore.exceptions import ClientError
 import colorlog
 import jwt
 import requests
+from simple_term_menu import TerminalMenu
 import MySQLdb
 from PIL import Image
 
 
 # Configuration
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
+JSONDIR = "/groups/scicompsoft/informatics/data/release_libraries"
 AWS = dict()
 LIBRARY = dict()
 DATABASE = 'sage'
@@ -157,14 +160,59 @@ def initialize_s3():
                                      aws_session_token=credentials['SessionToken'])
 
 
+def get_parms():
+    """ Query the user for the CDM library and manifold
+        Keyword arguments:
+            None
+        Returns:
+            None
+    """
+    if not ARG.LIBRARY:
+        print("Select a library:")
+        cdmlist = list()
+        for cdmlib in LIBRARY:
+            cdmlist.append(cdmlib)
+        terminal_menu = TerminalMenu(cdmlist)
+        chosen = terminal_menu.show()
+        if chosen is None:
+            LOGGER.error("No library selected")
+            sys.exit(0)
+        ARG.LIBRARY = cdmlist[chosen].replace(' ', '_')
+    if not ARG.JSON:
+        jsonlist = list(map(lambda jfile: jfile.split('/')[-1],
+                            glob.glob(JSONDIR + "/*.json")))
+        jsonlist.sort()
+        jsonlist.insert(0, "None (use API)")
+        terminal_menu = TerminalMenu(jsonlist)
+        chosen = terminal_menu.show()
+        if chosen:
+            ARG.JSON = '/'.join([JSONDIR, jsonlist[chosen]])
+    if not ARG.MANIFOLD:
+        print("Select manifold to run on:")
+        manifold = ['dev', 'prod']
+        terminal_menu = TerminalMenu(manifold)
+        chosen = terminal_menu.show()
+        if chosen is None:
+            LOGGER.error("No manifold selected")
+            sys.exit(0)
+        ARG.MANIFOLD = manifold[chosen]
+
+
 def initialize_program():
     """ Initialize
     """
-    global AWS, CONFIG, LIBRARY # pylint: disable=W0603
+    global AWS, CONFIG, DATABASE, LIBRARY, TAGS # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
     data = call_responder('config', 'config/aws')
     AWS = data['config']
+    data = call_responder('config', 'config/cdm_libraries')
+    LIBRARY = data['config']
+    get_parms()
+    TAGS = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
+           + 'VERSION=' + __version__
+    if ARG.LIBRARY == 'flylight_splitgal4_drivers':
+        DATABASE = 'mbew'
     data = call_responder('config', 'config/db_config')
     manifold = 'prod'
     if ARG.LIBRARY == 'flylight_splitgal4_drivers':
@@ -172,8 +220,6 @@ def initialize_program():
     (CONN[DATABASE], CURSOR[DATABASE]) = db_connect(data['config'][DATABASE][manifold])
     if DATABASE != 'sage':
         (CONN['sage'], CURSOR['sage']) = db_connect(data['config']['sage']['prod'])
-    data = call_responder('config', 'config/cdm_libraries')
-    LIBRARY = data['config']
     if ARG.LIBRARY not in LIBRARY:
         LOGGER.critical("Unknown library %s", ARG.LIBRARY)
         sys.exit(-1)
@@ -938,7 +984,7 @@ if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
         description="Upload Color Depth MIPs to AWS S3")
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
-                        default='flylight_splitgal4_drivers', help='color depth library')
+                        default='', help='color depth library')
     PARSER.add_argument('--json', dest='JSON', action='store',
                         help='JSON file')
     PARSER.add_argument('--release', dest='RELEASE', action='store',
@@ -958,7 +1004,7 @@ if __name__ == '__main__':
                         default=False,
                         help='Flag, Check for previous AWS upload')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='prod', help='S3 manifold')
+                        default='', help='S3 manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False,
                         help='Flag, Actually write to JACS (and AWS if flag set)')
@@ -979,18 +1025,16 @@ if __name__ == '__main__':
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
 
-    TAGS = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
-           + 'VERSION=' + __version__
     STAMP = strftime("%Y%m%dT%H%M%S")
     ERR_FILE = 'upload_cdms_errors_%s.txt' % STAMP
     ERR = open(ERR_FILE, 'w')
     S3CP_FILE = 'upload_cdms_s3cp_%s.txt' % STAMP
     S3CP = open(S3CP_FILE, 'w')
 
-    if ARG.LIBRARY == 'flylight_splitgal4_drivers':
-        DATABASE = 'mbew'
     initialize_program()
     START_TIME = datetime.now()
+    method = 'JSON file' if ARG.JSON else 'JACS API'
+    print("Processing %s on %s manifold from %s" % (ARG.LIBRARY, ARG.MANIFOLD, method))
     if ARG.JSON:
         upload_cdms_from_file()
     else:
