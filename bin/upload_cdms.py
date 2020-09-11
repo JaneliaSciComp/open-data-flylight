@@ -39,7 +39,7 @@ CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
-         'Duplicate objects': 0, 'Unparsable files': 0}
+         'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0}
 TRANSACTIONS = dict()
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
@@ -206,7 +206,7 @@ def initialize_program():
     CONFIG = data['config']
     data = call_responder('config', 'config/aws')
     AWS = data['config']
-    data = call_responder('config', 'config/cdm_libraries')
+    data = call_responder('config', 'config/cdm_library')
     LIBRARY = data['config']
     get_parms()
     TAGS = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
@@ -244,7 +244,7 @@ def get_s3_names(bucket, newname):
     '''
     if ARG.MANIFOLD != 'prod':
         bucket += '-' + ARG.MANIFOLD
-    library = LIBRARY[ARG.LIBRARY].replace(' ', '_')
+    library = LIBRARY[ARG.LIBRARY]['name'].replace(' ', '_')
     if ARG.LIBRARY in VERSION_REQUIRED:
         library += '_v' + ARG.VERSION
     object_name = '/'.join([REC['alignment_space'], library, newname])
@@ -284,6 +284,7 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     S3CP.write("%s\t%s\n" % (complete_fpath, '/'.join([bucket, object_name])))
     if (not ARG.AWS) and (not force):
         return url
+    return url #PLUG
     if not ARG.WRITE:
         LOGGER.info(object_name)
         COUNT['Amazon S3 uploads'] += 1
@@ -630,7 +631,6 @@ def process_light(smp, mapping, driver, release):
         PNAME[publishing_name] = 1
     else:
         PNAME[publishing_name] += 1
-    #print(sdata[0]['line'], publishing_name, smp['_id'], smp['filepath'].split('/')[-1]) #PLUG
     REC['line'] = publishing_name
     #REC['slide_code'] = translate_slide_code(sdata[0]['slideCode'], sdata[0]['line'])
     REC['slide_code'] = sdata[0]['slideCode']
@@ -731,13 +731,12 @@ def update_jacs(sid, url, turl):
         Returns:
           None
     '''
-    if ARG.MANIFOLD != 'prod':
-        return
     pay = {"class": "org.janelia.model.domain.gui.cdmip.ColorDepthImage",
            "publicImageUrl": url,
            "publicThumbnailUrl": turl}
     call_responder('jacsv2', 'colorDepthMIPs/' + sid \
                    + '/publicURLs', pay, True)
+    COUNT['Updated on JACS'] += 1
 
 
 def set_name_and_filepath(smp):
@@ -1043,6 +1042,18 @@ if __name__ == '__main__':
     print("Elapsed time: %s" %  (STOP_TIME - START_TIME))
     ERR.close()
     S3CP.close()
+    LIBRARY[ARG.LIBRARY]['manifold'] = ARG.MANIFOLD
+    LIBRARY[ARG.LIBRARY]['samples'] = COUNT['Samples']
+    LIBRARY[ARG.LIBRARY]['images'] = COUNT['Samples'] - COUNT['Duplicate objects']
+    LIBRARY[ARG.LIBRARY]['updated'] = str(datetime.now())
+    LIBRARY[ARG.LIBRARY]['method'] = method
+    LIBRARY[ARG.LIBRARY]['json_file'] = ARG.JSON if ARG.JSON else ''
+    resp = requests.post(CONFIG['config']['url'] + 'importjson/cdm_library/' + ARG.LIBRARY,
+                         {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
+    if resp.status_code != 200:
+        LOGGER.error(resp.json()['rest']['message'])
+    else:
+        LOGGER.info("Updated cdm_library configuration")
     for key in sorted(COUNT):
         print("%-20s %d" % (key + ':', COUNT[key]))
     if ANCILLARY_UPLOADS:
