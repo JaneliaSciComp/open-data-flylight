@@ -47,7 +47,7 @@ def initialize_program():
     CONFIG = data['config']
     data = call_responder('config', 'config/aws')
     AWS = data['config']
-    data = call_responder('config', 'config/cdm_libraries')
+    data = call_responder('config', 'config/cdm_library')
     CDM = data['config']
 
 
@@ -104,14 +104,14 @@ def get_parms():
         print("Select a library:")
         cdmlist = list()
         for cdmlib in CDM:
-            if CDM[cdmlib] not in cdmlist:
-                cdmlist.append(CDM[cdmlib])
+            if CDM[cdmlib]['name'] not in cdmlist:
+                cdmlist.append(CDM[cdmlib]['name'])
         terminal_menu = TerminalMenu(cdmlist)
         chosen = terminal_menu.show()
         if chosen is None:
             LOGGER.error("No library selected")
             sys.exit(0)
-        ARG.LIBRARY = cdmlist[chosen].replace(' ', '_')
+    ARG.LIBRARY = cdmlist[chosen].replace(' ', '_')
     if not ARG.MANIFOLD:
         print("Select manifold to run on:")
         manifold = ['dev', 'prod']
@@ -121,6 +121,11 @@ def get_parms():
             LOGGER.error("No manifold selected")
             sys.exit(0)
         ARG.MANIFOLD = manifold[chosen]
+    for cdmlib in CDM:
+        if CDM[cdmlib]['name'].replace(' ', '_') == ARG.LIBRARY:
+            print("Library %s was last modified on %s on %s"
+                  % (CDM[cdmlib]['name'], CDM[cdmlib]['manifold'], CDM[cdmlib]['updated']))
+            break
 
 
 def denormalize():
