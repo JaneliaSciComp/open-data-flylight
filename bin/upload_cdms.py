@@ -429,6 +429,27 @@ def get_line_mapping():
     return mapping, driver, release
 
 
+def get_image_mapping():
+    ''' Create a dictionary of published sample IDs
+        Keyword arguments:
+          None
+        Returns:
+          sample ID dictionary
+    '''
+    LOGGER.info("Getting image mapping")
+    published_ids = dict()
+    stmt = "SELECT DISTINCT workstation_sample_id FROM image_data_mv WHERE " \
+           + "AND to_publish='Y' AND alps_release IS NOT NULL"
+    try:
+        CURSOR['sage'].execute(stmt)
+        rows = CURSOR['sage'].fetchall()
+    except MySQLdb.Error as err:
+        sql_error(err)
+    for row in rows:
+        published_ids[row['workstation_sample_id']] = 1
+    return published_ids
+
+
 def get_publishing_name(sdata, mapping):
     ''' Return a publishing name for this sample
         Keyword arguments:
@@ -549,14 +570,15 @@ def image_was_published(sid):
           True or False
     '''
     if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
-        stmt = "SELECT id FROM image_data_mv WHERE workstation_sample_id=%s " \
-               + "AND to_publish='Y' AND alps_release IS NOT NULL"
-        try:
-            CURSOR['sage'].execute(stmt % (sid,))
-            rows = CURSOR['sage'].fetchall()
-        except MySQLdb.Error as err:
-            sql_error(err)
-        if not rows:
+        #stmt = "SELECT id FROM image_data_mv WHERE workstation_sample_id=%s " \
+        #       + "AND to_publish='Y' AND alps_release IS NOT NULL"
+        #try:
+        #    CURSOR['sage'].execute(stmt % (sid,))
+        #    rows = CURSOR['sage'].fetchall()
+        #except MySQLdb.Error as err:
+        #    sql_error(err)
+        #if not rows:
+        if sid not in published_ids
             COUNT['Not published'] += 1
             err_text = "Sample %s was not published" % (sid)
             LOGGER.error(err_text)
@@ -600,8 +622,13 @@ def process_light(smp, mapping, driver, release):
         return False
     sid = (smp['sampleRef'].split('#'))[-1]
     LOGGER.info(sid)
-    if not image_was_published(sid):
-        return False
+    if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
+        if sid not in published_ids
+            COUNT['Not published'] += 1
+            err_text = "Sample %s was not published" % (sid)
+            LOGGER.error(err_text)
+            ERR.write(err_text + "\n")
+            return False
     sdata = call_responder('jacs', 'data/sample?sampleId=' + sid)
     # This is temporarily disabled
     #if not process_flylight_splitgal4_drivers(sdata, sid, release):
@@ -831,6 +858,7 @@ def upload_cdms_from_file():
           None
     '''
     mapping, driver, release = get_line_mapping()
+    published_ids = get_image_mapping()
     jfile = open(ARG.JSON, 'r')
     data = json.load(jfile)
     jfile.close()
@@ -915,6 +943,7 @@ def upload_cdms_from_api():
           None
     '''
     mapping, driver, release = get_line_mapping()
+    published_ids = get_image_mapping()
     samples = call_responder('jacsv2', 'colorDepthMIPs?libraryName=' + ARG.LIBRARY \
                              + '&alignmentSpace=' + CDM_ALIGNMENT_SPACE, '', True)
     total_objects = 0
