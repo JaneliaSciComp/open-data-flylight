@@ -17,6 +17,7 @@ import colorlog
 import jwt
 import requests
 from simple_term_menu import TerminalMenu
+from tqdm import tqdm
 import MySQLdb
 from PIL import Image
 
@@ -439,7 +440,7 @@ def get_image_mapping():
     LOGGER.info("Getting image mapping")
     published_ids = dict()
     stmt = "SELECT DISTINCT workstation_sample_id FROM image_data_mv WHERE " \
-           + "AND to_publish='Y' AND alps_release IS NOT NULL"
+           + "to_publish='Y' AND alps_release IS NOT NULL"
     try:
         CURSOR['sage'].execute(stmt)
         rows = CURSOR['sage'].fetchall()
@@ -562,31 +563,6 @@ def process_flylight_splitgal4_drivers(sdata, sid, release):
     return True
 
 
-def image_was_published(sid):
-    ''' Determine if a sample was published
-        Keyword arguments:
-          sid: sample ID
-        Returns:
-          True or False
-    '''
-    if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
-        #stmt = "SELECT id FROM image_data_mv WHERE workstation_sample_id=%s " \
-        #       + "AND to_publish='Y' AND alps_release IS NOT NULL"
-        #try:
-        #    CURSOR['sage'].execute(stmt % (sid,))
-        #    rows = CURSOR['sage'].fetchall()
-        #except MySQLdb.Error as err:
-        #    sql_error(err)
-        #if not rows:
-        if sid not in published_ids
-            COUNT['Not published'] += 1
-            err_text = "Sample %s was not published" % (sid)
-            LOGGER.error(err_text)
-            ERR.write(err_text + "\n")
-            return False
-    return True
-
-
 def translate_slide_code(isc, line0):
     ''' Translate a slide code to remove initials.
         Keyword arguments:
@@ -604,13 +580,14 @@ def translate_slide_code(isc, line0):
     return isc
 
 
-def process_light(smp, mapping, driver, release):
+def process_light(smp, mapping, driver, release, published_ids):
     ''' Return the file name for a light microscopy sample.
         Keyword arguments:
           smp: sample record
           mapping: publishing name mapping dictionary
           driver: driver mapping dictionary
           release: release mapping dictionary
+          published_ids: sample dictionary
         Returns:
           New file name
     '''
@@ -623,7 +600,7 @@ def process_light(smp, mapping, driver, release):
     sid = (smp['sampleRef'].split('#'))[-1]
     LOGGER.info(sid)
     if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
-        if sid not in published_ids
+        if sid not in published_ids:
             COUNT['Not published'] += 1
             err_text = "Sample %s was not published" % (sid)
             LOGGER.error(err_text)
@@ -864,13 +841,11 @@ def upload_cdms_from_file():
     jfile.close()
     entries = len(data)
     print("Number of entries in JSON: %d" % entries)
-    for smp in data:
+    for smp in tqdm(data):
         smp['_id'] = smp['id']
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
-        if not COUNT['Samples'] % 1000:
-            print("Samples: %d (%.2f%%)" % (COUNT['Samples'], COUNT['Samples'] / entries  * 100.0))
         if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
             COUNT['Already on JACS'] += 1
             continue
@@ -894,7 +869,7 @@ def upload_cdms_from_file():
                 smp['cdmPath'] = smp['variants'][ARG.GAMMA]
                 del smp['variants'][ARG.GAMMA]
             set_name_and_filepath(smp)
-            newname = process_light(smp, mapping, driver, release)
+            newname = process_light(smp, mapping, driver, release, published_ids)
             if not newname:
                 err_text = "No publishing name for FlyLight %s" % smp['name']
                 LOGGER.error(err_text)
@@ -948,12 +923,10 @@ def upload_cdms_from_api():
                              + '&alignmentSpace=' + CDM_ALIGNMENT_SPACE, '', True)
     total_objects = 0
     print("Samples for %s: %d" % (ARG.LIBRARY, len(samples)))
-    for smp in samples:
+    for smp in tqdm(samples):
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
-        if not COUNT['Samples'] % 1000:
-            print(COUNT['Samples'])
         if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
             COUNT['Already on JACS'] += 1
             continue
@@ -970,7 +943,7 @@ def upload_cdms_from_api():
             if not newname:
                 continue
         else:
-            newname = process_light(smp, mapping, driver, release)
+            newname = process_light(smp, mapping, driver, release, published_ids)
             if not newname:
                 continue
         dirpath = os.path.dirname(smp['filepath'])
