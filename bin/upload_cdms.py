@@ -44,6 +44,7 @@ TRANSACTIONS = dict()
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 S3_CLIENT = S3_RESOURCE = ''
+FULL_NAME = ''
 MAX_SIZE = 500
 CREATE_THUMBNAIL = False
 S3_SECONDS = 60 * 60 * 12
@@ -170,14 +171,19 @@ def get_parms():
     if not ARG.LIBRARY:
         print("Select a library:")
         cdmlist = list()
+        liblist = list()
         for cdmlib in LIBRARY:
-            cdmlist.append(cdmlib)
+            liblist.append(cdmlib)
+            text = cdmlib
+            if LIBRARY[cdmlib]['samples']:
+                text += " (last updated %s on %s)" % (LIBRARY[cdmlib]['updated'], LIBRARY[cdmlib]['manifold'])
+            cdmlist.append(text)
         terminal_menu = TerminalMenu(cdmlist)
         chosen = terminal_menu.show()
         if chosen is None:
             LOGGER.error("No library selected")
             sys.exit(0)
-        ARG.LIBRARY = cdmlist[chosen].replace(' ', '_')
+        ARG.LIBRARY = liblist[chosen].replace(' ', '_')
     if not ARG.JSON:
         jsonlist = list(map(lambda jfile: jfile.split('/')[-1],
                             glob.glob(JSONDIR + "/*.json")))
@@ -201,7 +207,7 @@ def get_parms():
 def initialize_program():
     """ Initialize
     """
-    global AWS, CONFIG, DATABASE, LIBRARY, TAGS # pylint: disable=W0603
+    global AWS, CONFIG, DATABASE, FULL_NAME, LIBRARY, TAGS # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
     data = call_responder('config', 'config/aws')
@@ -230,7 +236,8 @@ def initialize_program():
     if int(time()) >= response['exp']:
         LOGGER.critical("Your token is expired")
         sys.exit(-1)
-    LOGGER.info("Authenticated as %s", response['full_name'])
+    FULL_NAME = response['full_name']
+    LOGGER.info("Authenticated as %s", FULL_NAME)
     initialize_s3()
 
 
@@ -1045,7 +1052,8 @@ if __name__ == '__main__':
     LIBRARY[ARG.LIBRARY]['manifold'] = ARG.MANIFOLD
     LIBRARY[ARG.LIBRARY]['samples'] = COUNT['Samples']
     LIBRARY[ARG.LIBRARY]['images'] = COUNT['Samples'] - COUNT['Duplicate objects']
-    LIBRARY[ARG.LIBRARY]['updated'] = str(datetime.now())
+    LIBRARY[ARG.LIBRARY]['updated'] = re.sub('\..*', '', str(datetime.now()))
+    LIBRARY[ARG.LIBRARY]['updated_by'] = FULL_NAME
     LIBRARY[ARG.LIBRARY]['method'] = method
     LIBRARY[ARG.LIBRARY]['json_file'] = ARG.JSON if ARG.JSON else ''
     resp = requests.post(CONFIG['config']['url'] + 'importjson/cdm_library/' + ARG.LIBRARY,
