@@ -34,13 +34,15 @@ CURSOR = dict()
 GEN1_COLLECTION = ['flylight_gen1_gal4', 'flylight_gen1_lexa', 'flylight_vt_gal4_screen',
                    'flylight_vt_lexa_screen', 'flylight_gen1_mcfo_published',
                    'flylight_gen1_mcfo_case_1_gamma1_4']
+GEN1_NONSTD = ['RTDC2', 'TRH_G4']
 CONVERSION_REQUIRED = ['flyem_hemibrain', 'flyem_hemibrain_1_0', 'flyem_hemibrain_1_1']
 VERSION_REQUIRED = ['flyem_hemibrain']
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
-         'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0}
+         'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
+         'FlyEM flips': 0}
 TRANSACTIONS = dict()
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
@@ -292,7 +294,6 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     S3CP.write("%s\t%s\n" % (complete_fpath, '/'.join([bucket, object_name])))
     if (not ARG.AWS) and (not force):
         return url
-    return url #PLUG
     if not ARG.WRITE:
         LOGGER.info(object_name)
         COUNT['Amazon S3 uploads'] += 1
@@ -481,7 +482,7 @@ def get_publishing_name(sdata, mapping):
                 publishing_name = field[1]
             publishing_name = publishing_name.replace('-', '_')
             if not (re.match('^R\d+[A-H]\d+$', publishing_name) \
-               or re.match('^VT\d+$', publishing_name)):
+               or re.match('^VT\d+$', publishing_name) or (publishing_name in GEN1_NONSTD)):
                 err_text = "Bad publishing name %s for %s" % (publishing_name, sdata[0]['line'])
                 LOGGER.error(err_text)
                 ERR.write(err_text + "\n")
@@ -514,6 +515,7 @@ def convert_file(sourcepath, newname):
         Returns:
           New filepath
     '''
+    LOGGER.debug("Converting %s", sourcepath)
     newpath = '/tmp/' + newname
     with Image.open(sourcepath) as image:
         image.save(newpath, 'PNG')
@@ -536,7 +538,7 @@ def process_hemibrain(smp, convert=True):
         smp['filepath'] = convert_file(smp['filepath'], newname)
     else:
         newname = newname.replace('.png', '.tif')
-        if '_FL' in smp['name']:
+        if '_FL' in smp['imageName']: # Used to be "name" for API call
             newname = newname.replace('CDM.', 'CDM-FL.')
     return newname
 
@@ -757,6 +759,10 @@ def set_name_and_filepath(smp):
         Returns:
           None
     '''
+    smp['filepath'] = smp['cdmPath']
+    smp['name'] = os.path.basename(smp['filepath'])
+    return
+    # Old code for API call
     if 'flyem' not in ARG.LIBRARY:
         smp['filepath'] = smp['cdmPath']
         smp['name'] = os.path.basename(smp['filepath'])
@@ -853,7 +859,8 @@ def upload_cdms_from_file():
         # Primary image
         skip_primary = False
         if 'flyem' in ARG.LIBRARY:
-            if 'imageArchivePathPLUG' in smp:
+            if '_FL' in smp['imageName']:
+                COUNT['FlyEM flips'] += 1
                 skip_primary = True
             else:
                 set_name_and_filepath(smp)
@@ -1053,17 +1060,18 @@ if __name__ == '__main__':
     S3CP.close()
     LIBRARY[ARG.LIBRARY]['manifold'] = ARG.MANIFOLD
     LIBRARY[ARG.LIBRARY]['samples'] = COUNT['Samples']
-    LIBRARY[ARG.LIBRARY]['images'] = COUNT['Samples'] - COUNT['Duplicate objects']
+    LIBRARY[ARG.LIBRARY]['images'] = COUNT['Samples'] - COUNT['Duplicate objects'] - COUNT['FlyEM flips']
     LIBRARY[ARG.LIBRARY]['updated'] = re.sub('\..*', '', str(datetime.now()))
     LIBRARY[ARG.LIBRARY]['updated_by'] = FULL_NAME
     LIBRARY[ARG.LIBRARY]['method'] = method
     LIBRARY[ARG.LIBRARY]['json_file'] = ARG.JSON if ARG.JSON else ''
-    resp = requests.post(CONFIG['config']['url'] + 'importjson/cdm_library/' + ARG.LIBRARY,
-                         {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
-    if resp.status_code != 200:
-        LOGGER.error(resp.json()['rest']['message'])
-    else:
-        LOGGER.info("Updated cdm_library configuration")
+    if ARG.WRITE:
+        resp = requests.post(CONFIG['config']['url'] + 'importjson/cdm_library/' + ARG.LIBRARY,
+                             {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
+        if resp.status_code != 200:
+            LOGGER.error(resp.json()['rest']['message'])
+        else:
+            LOGGER.info("Updated cdm_library configuration")
     for key in sorted(COUNT):
         print("%-20s %d" % (key + ':', COUNT[key]))
     if ANCILLARY_UPLOADS:
