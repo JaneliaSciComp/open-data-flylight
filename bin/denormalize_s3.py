@@ -5,7 +5,9 @@
 
 import argparse
 import json
+import random
 import sys
+import tempfile
 import colorlog
 import boto3
 from botocore.exceptions import ClientError
@@ -18,6 +20,7 @@ CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = CDM = dict()
 KEYFILE = "keys_denormalized.json"
 COUNTFILE = "counts_denormalized.json"
+DISTRIBUTE_FILES = ['searchable_neurons2']
 TAGS = 'PROJECT=CDCS&STAGE=prod&DEVELOPER=svirskasr&VERSION=%s' % (__version__)
 
 
@@ -49,6 +52,7 @@ def initialize_program():
     AWS = data['config']
     data = call_responder('config', 'config/cdm_library')
     CDM = data['config']
+    random.seed()
 
 
 def get_all_s3_objects(s3c, **base_kwargs):
@@ -93,6 +97,29 @@ def upload_to_aws(s3r, body, object_name):
         LOGGER.error(str(err))
 
 
+def write_order_file(which, body, prefix):
+    """ Write an order file for use with s3cp
+        Keyword arguments:
+            which: first prefix (e.g. "searchable_neurons2")
+            body: JSON
+            prefix: partial key prefix
+        Returns:
+            None
+    """
+    fname = tempfile.mktemp()
+    source_file = "%s_%s.txt" % (fname, which)
+    LOGGER.info("Writing temporary file %s" % (source_file))
+    tfile = open(source_file, "w")
+    tfile.write(body)
+    tfile.close()
+    order_file = source_file.replace('.txt', '.order')
+    LOGGER.info("Writing order file %s" % (order_file))
+    ofile = open(order_file, "w")
+    for chunk in range(100):
+        ofile.write("%s\t%s\n" % (source_file, '/'.join([ARG.BUCKET, prefix, 'KEYS', str(chunk), 'keys_denormalized.json'])))
+    ofile.close()
+
+
 def get_parms():
     """ Query the user for the CDM library and manifold
         Keyword arguments:
@@ -111,7 +138,7 @@ def get_parms():
         if chosen is None:
             LOGGER.error("No library selected")
             sys.exit(0)
-    ARG.LIBRARY = cdmlist[chosen].replace(' ', '_')
+        ARG.LIBRARY = cdmlist[chosen].replace(' ', '_')
     if not ARG.MANIFOLD:
         print("Select manifold to run on:")
         manifold = ['dev', 'prod']
@@ -165,8 +192,8 @@ def denormalize():
         which = 'default'
         LOGGER.debug(obj['Key'])
         splitkey = obj['Key'].split('/')
-        if len(splitkey) == 4:
-            which = splitkey[-2]
+        if len(splitkey) >= 4:
+            which = splitkey[2]
         if which not in key_list:
             key_list[which] = list()
             total_objects[which] = 0
@@ -181,8 +208,14 @@ def denormalize():
         if which != 'default':
             prefix += '/' + which
         object_name = '/'.join([prefix, KEYFILE])
+        print(key_list[which][0])
         print("%s objects: %d" % (which, total_objects[which]))
-        upload_to_aws(s3_resource, json.dumps(key_list[which], indent=4), object_name)
+        random.shuffle(key_list[which])
+        print(key_list[which][0])
+        if which in DISTRIBUTE_FILES:
+            write_order_file(which, json.dumps(key_list[which], indent=4), prefix)
+        else:
+            upload_to_aws(s3_resource, json.dumps(key_list[which], indent=4), object_name)
         object_name = '/'.join([prefix, COUNTFILE])
         upload_to_aws(s3_resource, json.dumps({"objectCount": total_objects[which]}, indent=4),
                       object_name)
