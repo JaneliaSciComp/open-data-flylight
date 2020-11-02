@@ -108,15 +108,16 @@ def write_order_file(which, body, prefix):
     """
     fname = tempfile.mktemp()
     source_file = "%s_%s.txt" % (fname, which)
-    LOGGER.info("Writing temporary file %s" % (source_file))
+    LOGGER.info("Writing temporary file %s", source_file)
     tfile = open(source_file, "w")
     tfile.write(body)
     tfile.close()
     order_file = source_file.replace('.txt', '.order')
-    LOGGER.info("Writing order file %s" % (order_file))
+    LOGGER.info("Writing order file %s", order_file)
     ofile = open(order_file, "w")
     for chunk in range(100):
-        ofile.write("%s\t%s\n" % (source_file, '/'.join([ARG.BUCKET, prefix, 'KEYS', str(chunk), 'keys_denormalized.json'])))
+        ofile.write("%s\t%s\n" % (source_file, '/'.join([ARG.BUCKET, prefix, 'KEYS',
+                                                         str(chunk), 'keys_denormalized.json'])))
     ofile.close()
 
 
