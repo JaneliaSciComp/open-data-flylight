@@ -204,15 +204,20 @@ def denormalize():
         LOGGER.error("%s/%s was not found in the %s bucket", ARG.TEMPLATE, ARG.LIBRARY, ARG.BUCKET)
         sys.exit(-1)
     # Write files
+    prefix_template = 'https://%s.s3.amazonaws.com/%s'
+    payload = {'library': ARG.LIBRARY, 'count': 0, 'prefix': '', 'variants': dict()}
     for which in key_list:
         prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY])
         if which != 'default':
             prefix += '/' + which
+            payload['variants'][which] = {'count': total_objects[which],
+                                          'prefix': prefix_template % (ARG.BUCKET, prefix)}
+        else:
+            payload['count'] = total_objects[which]
+            payload['prefix'] = prefix_template % (ARG.BUCKET, prefix)
         object_name = '/'.join([prefix, KEYFILE])
-        print(key_list[which][0])
         print("%s objects: %d" % (which, total_objects[which]))
         random.shuffle(key_list[which])
-        print(key_list[which][0])
         if which in DISTRIBUTE_FILES:
             write_order_file(which, json.dumps(key_list[which], indent=4), prefix)
         else:
@@ -220,6 +225,9 @@ def denormalize():
         object_name = '/'.join([prefix, COUNTFILE])
         upload_to_aws(s3_resource, json.dumps({"objectCount": total_objects[which]}, indent=4),
                       object_name)
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('cdm_denormalized')
+    table.put_item(Item=payload)
 
 
 if __name__ == '__main__':
