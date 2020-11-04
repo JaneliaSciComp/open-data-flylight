@@ -20,7 +20,7 @@ CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = CDM = dict()
 KEYFILE = "keys_denormalized.json"
 COUNTFILE = "counts_denormalized.json"
-DISTRIBUTE_FILES = ['searchable_neurons2']
+DISTRIBUTE_FILES = ['searchable_neurons']
 TAGS = 'PROJECT=CDCS&STAGE=prod&DEVELOPER=svirskasr&VERSION=%s' % (__version__)
 
 
@@ -100,7 +100,7 @@ def upload_to_aws(s3r, body, object_name):
 def write_order_file(which, body, prefix):
     """ Write an order file for use with s3cp
         Keyword arguments:
-            which: first prefix (e.g. "searchable_neurons2")
+            which: first prefix (e.g. "searchable_neurons")
             body: JSON
             prefix: partial key prefix
         Returns:
@@ -205,13 +205,14 @@ def denormalize():
         sys.exit(-1)
     # Write files
     prefix_template = 'https://%s.s3.amazonaws.com/%s'
-    payload = {'library': ARG.LIBRARY, 'count': 0, 'prefix': '', 'variants': dict()}
+    payload = {'keyname': ARG.LIBRARY, 'count': 0, 'prefix': '',
+               'subprefixes': dict()}
     for which in key_list:
         prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY])
         if which != 'default':
             prefix += '/' + which
-            payload['variants'][which] = {'count': total_objects[which],
-                                          'prefix': prefix_template % (ARG.BUCKET, prefix)}
+            payload['subprefixes'][which] = {'count': total_objects[which],
+                                             'prefix': prefix_template % (ARG.BUCKET, prefix)}
         else:
             payload['count'] = total_objects[which]
             payload['prefix'] = prefix_template % (ARG.BUCKET, prefix)
@@ -225,9 +226,10 @@ def denormalize():
         object_name = '/'.join([prefix, COUNTFILE])
         upload_to_aws(s3_resource, json.dumps({"objectCount": total_objects[which]}, indent=4),
                       object_name)
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('cdm_denormalized')
-    table.put_item(Item=payload)
+    if not ARG.TEST:
+        dynamodb = boto3.resource('dynamodb')
+        table = dynamodb.Table('cdm_denormalized')
+        table.put_item(Item=payload)
 
 
 if __name__ == '__main__':
