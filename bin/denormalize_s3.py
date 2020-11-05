@@ -187,6 +187,11 @@ def denormalize():
     prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY]) + '/'
     key_list = dict()
     print("Processing %s on %s manifold" % (ARG.LIBRARY, ARG.MANIFOLD))
+    max_batch = dict()
+    first_batch = dict()
+    for which in DISTRIBUTE_FILES:
+        max_batch[which] = 0
+        first_batch[which] = 0
     for obj in get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix):
         if KEYFILE in obj['Key'] or COUNTFILE in obj['Key']:
             continue
@@ -200,6 +205,18 @@ def denormalize():
             total_objects[which] = 0
         total_objects[which] += 1
         key_list[which].append(obj['Key'])
+        if which in DISTRIBUTE_FILES:
+            num = int(obj['Key'].split("/")[3])
+            if not first_batch[which]:
+                first_batch[which] = num
+            if num > max_batch[which]:
+                max_batch[which] = num
+    batch_size = dict()
+    for which in DISTRIBUTE_FILES:
+        batch_size[which] = 0
+        objs = get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix + which + "/" + str(first_batch[which]) + "/")
+        for obj in objs:
+            batch_size[which] += 1
     if not total_objects['default']:
         LOGGER.error("%s/%s was not found in the %s bucket", ARG.TEMPLATE, ARG.LIBRARY, ARG.BUCKET)
         sys.exit(-1)
@@ -213,6 +230,9 @@ def denormalize():
             prefix += '/' + which
             payload['subprefixes'][which] = {'count': total_objects[which],
                                              'prefix': prefix_template % (ARG.BUCKET, prefix)}
+            if which in DISTRIBUTE_FILES:
+                payload['subprefixes'][which]['batch_size'] = batch_size[which]
+                payload['subprefixes'][which]['max_batch'] = max_batch[which]
         else:
             payload['count'] = total_objects[which]
             payload['prefix'] = prefix_template % (ARG.BUCKET, prefix)
@@ -228,7 +248,8 @@ def denormalize():
                       object_name)
     if not ARG.TEST:
         dynamodb = boto3.resource('dynamodb')
-        table = dynamodb.Table('cdm_denormalized')
+        table = 'janelia-neuronbridge-denormalization-%s' % (ARG.MANIFOLD)
+        table = dynamodb.Table(table)
         table.put_item(Item=payload)
 
 
