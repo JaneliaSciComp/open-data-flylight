@@ -1,6 +1,14 @@
 ''' denormalize_s3.py
     Denormalize an S3 bucket (with a Template/Library prefix).
-    A file named keys_denormalized.json is created in the Library.
+    Two files are written to the Template/Library prefix:
+      keys_denormalized.json: list of image files in Template/Library
+      counts_denormalized.json: count of image files in Template/Library
+    Two files are created in each Template/Library/<variant> prefix:
+      keys_denormalized.json: list of image files in Template/Library/<variant>
+      counts_denormalized.json: count of image files in Template/Library/<variant>
+    For variants in DISTRIBUTE_FILES, an order file for use with s3cp will be created
+    which will copy keys_denormalized.json to Template/Library/<variant>/KEYS/<num>
+    where <num> is a number from 0-99.
 '''
 
 import argparse
@@ -104,7 +112,7 @@ def write_order_file(which, body, prefix):
             body: JSON
             prefix: partial key prefix
         Returns:
-            None
+            order file name
     """
     fname = tempfile.mktemp()
     source_file = "%s_%s.txt" % (fname, which)
@@ -119,6 +127,7 @@ def write_order_file(which, body, prefix):
         ofile.write("%s\t%s\n" % (source_file, '/'.join([ARG.BUCKET, prefix, 'KEYS',
                                                          str(chunk), 'keys_denormalized.json'])))
     ofile.close()
+    return order_file
 
 
 def get_parms():
@@ -156,18 +165,13 @@ def get_parms():
             break
 
 
-def denormalize():
-    """ Denormalize a bucket into a JSON file
+def initialize_s3():
+    """ Initialize S3 client and resource
         Keyword arguments:
           None
         Returns:
-          None
+          S3 client and resource
     """
-    #pylint: disable=no-member
-    get_parms()
-    if ARG.MANIFOLD != 'prod':
-        ARG.BUCKET = '-'.join([ARG.BUCKET, ARG.MANIFOLD])
-    total_objects = dict()
     if ARG.MANIFOLD == 'prod':
         sts_client = boto3.client('sts')
         aro = sts_client.assume_role(RoleArn=AWS['role_arn'],
@@ -182,11 +186,22 @@ def denormalize():
                                      aws_secret_access_key=credentials['SecretAccessKey'],
                                      aws_session_token=credentials['SessionToken'])
     else:
+        ARG.BUCKET = '-'.join([ARG.BUCKET, ARG.MANIFOLD])
         s3_client = boto3.client('s3')
         s3_resource = boto3.resource('s3')
-    prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY]) + '/'
+    return s3_client, s3_resource
+
+
+def populate_batch_dict(s3_client, prefix):
+    """ Produce a dict with key/batch information
+        Keyword arguments:
+          s3_client: S3 client
+          prefix: top-level prefix
+        Returns:
+          batch dictionary
+    """
+    total_objects = dict()
     key_list = dict()
-    print("Processing %s on %s manifold" % (ARG.LIBRARY, ARG.MANIFOLD))
     max_batch = dict()
     first_batch = dict()
     for which in DISTRIBUTE_FILES:
@@ -214,43 +229,70 @@ def denormalize():
     batch_size = dict()
     for which in DISTRIBUTE_FILES:
         batch_size[which] = 0
-        objs = get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix + which + "/" + str(first_batch[which]) + "/")
+        objs = get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix + which + "/"
+                                  + str(first_batch[which]) + "/")
         for obj in objs:
             batch_size[which] += 1
-    if not total_objects['default']:
+    batch_dict = {'count': total_objects,
+                  'keys': key_list,
+                  'size': batch_size,
+                  'max_batch': max_batch}
+    return batch_dict
+
+
+def denormalize():
+    """ Denormalize a bucket into a JSON file
+        Keyword arguments:
+          None
+        Returns:
+          None
+    """
+    #pylint: disable=no-member
+    get_parms()
+    s3_client, s3_resource = initialize_s3()
+    prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY]) + '/'
+    print("Processing %s on %s manifold" % (ARG.LIBRARY, ARG.MANIFOLD))
+    batch_dict = populate_batch_dict(s3_client, prefix)
+    if not batch_dict['count']['default']:
         LOGGER.error("%s/%s was not found in the %s bucket", ARG.TEMPLATE, ARG.LIBRARY, ARG.BUCKET)
         sys.exit(-1)
     # Write files
     prefix_template = 'https://%s.s3.amazonaws.com/%s'
     payload = {'keyname': ARG.LIBRARY, 'count': 0, 'prefix': '',
                'subprefixes': dict()}
-    for which in key_list:
+    order_file = list()
+    for which in batch_dict['keys']:
         prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY])
         if which != 'default':
             prefix += '/' + which
-            payload['subprefixes'][which] = {'count': total_objects[which],
+            payload['subprefixes'][which] = {'count': batch_dict['count'][which],
                                              'prefix': prefix_template % (ARG.BUCKET, prefix)}
             if which in DISTRIBUTE_FILES:
-                payload['subprefixes'][which]['batch_size'] = batch_size[which]
-                payload['subprefixes'][which]['max_batch'] = max_batch[which]
+                payload['subprefixes'][which]['batch_size'] = batch_dict['size'][which]
+                payload['subprefixes'][which]['num_batches'] = batch_dict['max_batch'][which]
         else:
-            payload['count'] = total_objects[which]
+            payload['count'] = batch_dict['count'][which]
             payload['prefix'] = prefix_template % (ARG.BUCKET, prefix)
         object_name = '/'.join([prefix, KEYFILE])
-        print("%s objects: %d" % (which, total_objects[which]))
-        random.shuffle(key_list[which])
+        print("%s objects: %d" % (which, batch_dict['count'][which]))
+        random.shuffle(batch_dict['keys'][which])
         if which in DISTRIBUTE_FILES:
-            write_order_file(which, json.dumps(key_list[which], indent=4), prefix)
-        else:
-            upload_to_aws(s3_resource, json.dumps(key_list[which], indent=4), object_name)
+            order_file.append(write_order_file(which, json.dumps(batch_dict['keys'][which],
+                                                                 indent=4), prefix))
+        upload_to_aws(s3_resource, json.dumps(batch_dict['keys'][which], indent=4), object_name)
         object_name = '/'.join([prefix, COUNTFILE])
-        upload_to_aws(s3_resource, json.dumps({"objectCount": total_objects[which]}, indent=4),
-                      object_name)
+        upload_to_aws(s3_resource, json.dumps({"objectCount": batch_dict['count'][which]},
+                                              indent=4), object_name)
     if not ARG.TEST:
         dynamodb = boto3.resource('dynamodb')
         table = 'janelia-neuronbridge-denormalization-%s' % (ARG.MANIFOLD)
         table = dynamodb.Table(table)
         table.put_item(Item=payload)
+    if order_file:
+        print("Order files must be processed with s3cp to upload the key file to S3:")
+        for order in order_file:
+            print("  python3 s3cp.py --order " + order)
+        print("s3cp is available at https://github.com/JaneliaSciComp/freight")
 
 
 if __name__ == '__main__':
