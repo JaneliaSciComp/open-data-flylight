@@ -43,6 +43,7 @@ COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consens
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
          'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
          'FlyEM flips': 0}
+SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100}
 TRANSACTIONS = dict()
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
@@ -486,8 +487,6 @@ def get_publishing_name(sdata, mapping):
                 err_text = "Bad publishing name %s for %s" % (publishing_name, sdata[0]['line'])
                 LOGGER.error(err_text)
                 ERR.write(err_text + "\n")
-                #if ARG.WRITE:
-                #    sys.exit(-1)
     return publishing_name
     # Old code
     #pylint: disable=W0101
@@ -637,8 +636,6 @@ def process_light(smp, mapping, driver, release, published_ids):
         err_text = "No publishing name for sample %s (%s)" % (sid, sdata[0]['line'])
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
-        #if ARG.WRITE:
-        #    sys.exit(-1)
         return False
     if publishing_name not in PNAME:
         PNAME[publishing_name] = 1
@@ -656,8 +653,6 @@ def process_light(smp, mapping, driver, release, published_ids):
         err_text = "Bad driver for sample %s (%s)" % (sid, sdata[0]['line'])
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
-        #if ARG.WRITE:
-        #    sys.exit(-1)
         return False
     if sdata[0]['line'] in driver:
         drv = driver[sdata[0]['line']]
@@ -793,6 +788,13 @@ def upload_flyem_ancillary_files(smp, newname):
         ancname = '/'.join([ancillary, ancname])
         dirpath = os.path.dirname(smp['variants'][ancillary])
         fname = os.path.basename(smp['variants'][ancillary])
+        if ancillary == 'searchable_neurons':
+            if SUBDIVISION['counter'] >= SUBDIVISION['limit']:
+                SUBDIVISION['prefix'] += 1
+                SUBDIVISION['counter'] = 0
+            ancname = ancname.replace('searchable_neurons/',
+                                      'searchable_neurons/%s/' % str(SUBDIVISION['prefix']))
+            SUBDIVISION['counter'] += 1
         url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
         if ancillary not in ANCILLARY_UPLOADS:
             ANCILLARY_UPLOADS[ancillary] = 1
@@ -825,6 +827,13 @@ def upload_flylight_ancillary_files(smp, newname):
         ancname = '/'.join([ancillary, ancname])
         dirpath = os.path.dirname(smp['variants'][ancillary])
         fname = os.path.basename(smp['variants'][ancillary])
+        if ancillary == 'searchable_neurons':
+            if SUBDIVISION['counter'] >= SUBDIVISION['limit']:
+                SUBDIVISION['prefix'] += 1
+                SUBDIVISION['counter'] = 0
+            ancname = ancname.replace('searchable_neurons/',
+                                      'searchable_neurons/%s/' % str(SUBDIVISION['prefix']))
+            SUBDIVISION['counter'] += 1
         url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
         if ancillary not in ANCILLARY_UPLOADS:
             ANCILLARY_UPLOADS[ancillary] = 1
@@ -895,7 +904,7 @@ def upload_cdms_from_file():
                 if url != 'Skipped':
                     turl = produce_thumbnail(dirpath, fname, newname, url)
                     if ARG.WRITE:
-                        if ARG.LIBRARY in CONVERSION_REQUIRED:
+                        if ARG.AWS and (ARG.LIBRARY in CONVERSION_REQUIRED):
                             os.remove(smp['filepath'])
                         update_jacs(smp['_id'], url, turl)
                     else:
@@ -960,7 +969,7 @@ def upload_cdms_from_api():
         if url:
             turl = produce_thumbnail(dirpath, fname, newname, url)
             if ARG.WRITE:
-                if ARG.LIBRARY in CONVERSION_REQUIRED:
+                if ARG.AWS and (ARG.LIBRARY in CONVERSION_REQUIRED):
                     os.remove(smp['filepath'])
                 update_jacs(smp['_id'], url, turl)
             else:
@@ -1011,6 +1020,8 @@ if __name__ == '__main__':
                         help='Flag, Update image in AWS and on JACS')
     PARSER.add_argument('--aws', dest='AWS', action='store_true',
                         default=False, help='Write files to AWS')
+    PARSER.add_argument('--config', dest='CONFIG', action='store_true',
+                        default=False, help='Update configuration')
     PARSER.add_argument('--samples', dest='SAMPLES', action='store', type=int,
                         default=0, help='Number of samples to transfer')
     PARSER.add_argument('--version', dest='VERSION', action='store',
@@ -1065,7 +1076,7 @@ if __name__ == '__main__':
     LIBRARY[ARG.LIBRARY]['updated_by'] = FULL_NAME
     LIBRARY[ARG.LIBRARY]['method'] = method
     LIBRARY[ARG.LIBRARY]['json_file'] = ARG.JSON if ARG.JSON else ''
-    if ARG.WRITE:
+    if ARG.WRITE or ARG.CONFIG:
         resp = requests.post(CONFIG['config']['url'] + 'importjson/cdm_library/' + ARG.LIBRARY,
                              {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
         if resp.status_code != 200:
