@@ -20,6 +20,7 @@ __version__ = '0.0.1'
 # Configuration
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = dict()
+S3_SECONDS = 60 * 60 * 12
 
 
 def call_responder(server, endpoint):
@@ -51,29 +52,25 @@ def initialize_program():
 
 
 def initialize_s3():
-    """ Initialize S3 client and resource
+    """ Initialize S3 client
         Keyword arguments:
           None
         Returns:
-          S3 client and resource
+          S3 clientt
     """
     if ARG.MANIFOLD == 'prod':
         sts_client = boto3.client('sts')
         aro = sts_client.assume_role(RoleArn=AWS['role_arn'],
-                                     RoleSessionName="AssumeRoleSession1")
+                                     RoleSessionName="AssumeRoleSession1",
+                                     DurationSeconds=S3_SECONDS)
         credentials = aro['Credentials']
         s3_client = boto3.client('s3',
                                  aws_access_key_id=credentials['AccessKeyId'],
                                  aws_secret_access_key=credentials['SecretAccessKey'],
                                  aws_session_token=credentials['SessionToken'])
-        s3_resource = boto3.resource('s3',
-                                     aws_access_key_id=credentials['AccessKeyId'],
-                                     aws_secret_access_key=credentials['SecretAccessKey'],
-                                     aws_session_token=credentials['SessionToken'])
     else:
         s3_client = boto3.client('s3')
-        s3_resource = boto3.resource('s3')
-    return s3_client, s3_resource
+    return s3_client
 
 
 def get_keyfile(client, bucket):
@@ -135,7 +132,7 @@ def convert_tiffs():
           None
     """
     #pylint: disable=no-member
-    s3_client, s3_resource = initialize_s3()
+    s3_client = initialize_s3()
     bucket = "janelia-flylight-color-depth"
     if ARG.MANIFOLD != 'prod':
         bucket += '-dev'
