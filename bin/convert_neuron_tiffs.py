@@ -1,8 +1,9 @@
 ''' convert_neuron_tiffs.py
-
+    Convert searchabler neuron TIFFs into PNGs
 '''
 
 import argparse
+from io import BytesIO
 import json
 import os
 import re
@@ -10,17 +11,20 @@ import sys
 import colorlog
 import boto3
 from botocore.exceptions import ClientError
+import dask
+from dask.callbacks import Callback
 from PIL import Image
-from io import BytesIO
 import requests
-from tqdm import tqdm
+from simple_term_menu import TerminalMenu
+from tqdm.auto import tqdm
 
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 # Configuration
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = dict()
 S3_SECONDS = 60 * 60 * 12
+CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 
 
 def call_responder(server, endpoint):
@@ -44,7 +48,7 @@ def call_responder(server, endpoint):
 def initialize_program():
     """ Initialize
     """
-    global AWS, CDM, CONFIG # pylint: disable=W0603
+    global AWS, CONFIG # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
     data = call_responder('config', 'config/aws')
@@ -74,11 +78,42 @@ def initialize_s3():
 
 
 def get_keyfile(client, bucket):
+    if not ARG.LIBRARY:
+        library = list()
+        try:
+            response = client.list_objects_v2(Bucket=bucket,
+                                              Prefix=CDM_ALIGNMENT_SPACE + '/', Delimiter='/')
+        except ClientError as err:
+            LOGGER.critical(err)
+            sys.exit(-1)
+        except Exception as err:
+            LOGGER.critical(err)
+            sys.exit(-1)
+        if 'CommonPrefixes' not in response:
+            LOGGER.critical("Could not find any libraries")
+            sys.exit(-1)
+        for prefix in response['CommonPrefixes']:
+            prefixname = prefix['Prefix'].split('/')[-2]
+            try:
+                key = CDM_ALIGNMENT_SPACE + '/' + prefixname \
+                      + '/searchable_neurons/keys_denormalized.json'
+                client.head_object(Bucket=bucket, Key=key)
+                library.append(prefixname)
+            except ClientError:
+                pass
+        print("Select a library:")
+        terminal_menu = TerminalMenu(library)
+        chosen = terminal_menu.show()
+        if chosen is None:
+            LOGGER.error("No library selected")
+            sys.exit(0)
+        ARG.LIBRARY = library[chosen]
     if ARG.KEYFILE:
         with open(ARG.KEYFILE) as kfile:
             data = json.load(kfile)
         return data
-    key = 'JRC2018_Unisex_20x_HR/' + ARG.LIBRARY + '/searchable_neurons/keys_denormalized.json'
+    print(ARG.LIBRARY)
+    key = CDM_ALIGNMENT_SPACE + '/' + ARG.LIBRARY + '/searchable_neurons/keys_denormalized.json'
     try:
         response = client.get_object(Bucket=bucket, Key=key)
         content = response['Body'].read()
@@ -116,12 +151,44 @@ def upload_aws(client, bucket, sourcepath, targetpath):
         Returns:
           url
     """
-    LOGGER.debug("Uploading %s" % (targetpath))
+    LOGGER.debug("Uploading %s", targetpath)
     try:
         client.upload_file(sourcepath, bucket, targetpath,
                            ExtraArgs={'ContentType': 'image/png', 'ACL': 'public-read'})
     except Exception as err:
         LOGGER.critical(err)
+
+
+def convert_single_file(bucket, key):
+    s3_client = initialize_s3()
+    try:
+        s3_response_object = s3_client.get_object(Bucket=bucket, Key=key)
+        object_content = s3_response_object['Body'].read()
+        data_bytes_io = BytesIO(object_content)
+        img = Image.open(data_bytes_io)
+    except Exception as err:
+        LOGGER.critical(err)
+    if img.format != 'TIFF':
+        LOGGER.error("%s is not a TIFF file", key)
+    file = key.split('/')[-1].replace('.tif', '.png')
+    tmp_path = convert_img(img, file)
+    upload_path = re.sub(r'searchable_neurons.*', 'searchable_neurons/pngs/', key)
+    if ARG.AWS:
+        upload_aws(s3_client, bucket, tmp_path, upload_path + file)
+        os.remove(tmp_path)
+
+
+class ProgressBar(Callback):
+    def _start_state(self, dsk, state):
+        self._tqdm = tqdm(total=sum(len(state[k]) for k in ['ready', 'waiting',
+                                                            'running', 'finished']),
+                          colour='green')
+
+    def _posttask(self, key, result, dsk, state, worker_id):
+        self._tqdm.update(1)
+
+    def _finish(self, dsk, state, errored):
+        pass
 
 
 def convert_tiffs():
@@ -137,34 +204,21 @@ def convert_tiffs():
     if ARG.MANIFOLD != 'prod':
         bucket += '-dev'
     data = get_keyfile(s3_client, bucket)
-    order = open("png_s3cp_upload.txt", "w")
-    for key in tqdm(data):
-        try:
-            s3_response_object = s3_client.get_object(Bucket=bucket, Key=key)
-            object_content = s3_response_object['Body'].read()
-            dataBytesIO = BytesIO(object_content)
-            img = Image.open(dataBytesIO)
-        except Exception as err:
-            LOGGER.critical(err)
-        if img.format != 'TIFF':
-            LOGGER.error("%s is not a TIFF file", key)
-        if '.tif' not in key:
-            LOGGER.error("%s missing .tif extension", key)
-        file = key.split('/')[-1].replace('.tif', '.png')
-        tmp_path = convert_img(img, file)
-        upload_path = re.sub(r'searchable_neurons.*', 'searchable_neurons/pngs/', key)
-        if ARG.AWS:
-            upload_aws(s3_client, bucket, tmp_path, upload_path + file)
-            os.remove(tmp_path)
-        else:
-            order.write("%s\t%s/%s\n" % (tmp_path, bucket, upload_path + file))
-    order.close()
+    parallel = []
+    LOGGER.info("Preparing Dask")
+    for key in data:
+        if '.tif' not in key.lower():
+            continue
+        parallel.append(dask.delayed(convert_single_file)(bucket, key))
+    print("Creating %sPNGs" % ('and uploading ' if ARG.AWS else ''))
+    with ProgressBar():
+        dask.compute(*parallel)
 
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(description="Produce denormalization files")
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
-                        default='FlyLight_Split-GAL4_Drivers', help='Library')
+                        help='Library')
     PARSER.add_argument('--keyfile', dest='KEYFILE', action='store',
                         help='AWS S3 key file')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
