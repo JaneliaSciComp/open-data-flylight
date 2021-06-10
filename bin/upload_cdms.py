@@ -48,7 +48,7 @@ TRANSACTIONS = dict()
 PNAME = dict()
 REC = {'line': '', 'slide_code': '', 'gender': '', 'objective': '', 'area': ''}
 S3_CLIENT = S3_RESOURCE = ''
-FULL_NAME = ''
+FULL_NAME = TAGS = ''
 MAX_SIZE = 500
 CREATE_THUMBNAIL = False
 S3_SECONDS = 60 * 60 * 12
@@ -177,10 +177,13 @@ def get_parms():
         cdmlist = list()
         liblist = list()
         for cdmlib in LIBRARY:
+            if ARG.MANIFOLD not in LIBRARY[cdmlib]:
+                continue
             liblist.append(cdmlib)
             text = cdmlib
-            if LIBRARY[cdmlib]['samples']:
-                text += " (last updated %s on %s)" % (LIBRARY[cdmlib]['updated'], LIBRARY[cdmlib]['manifold'])
+            if LIBRARY[cdmlib][ARG.MANIFOLD]['samples']:
+                text += " (last updated %s on %s)" \
+                        % (LIBRARY[cdmlib][ARG.MANIFOLD]['updated'], ARG.MANIFOLD)
             cdmlist.append(text)
         terminal_menu = TerminalMenu(cdmlist)
         chosen = terminal_menu.show()
@@ -255,7 +258,7 @@ def get_s3_names(bucket, newname):
     '''
     if ARG.MANIFOLD != 'prod':
         bucket += '-' + ARG.MANIFOLD
-    library = LIBRARY[ARG.LIBRARY]['name'].replace(' ', '_')
+    library = LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['name'].replace(' ', '_')
     if ARG.LIBRARY in VERSION_REQUIRED:
         library += '_v' + ARG.VERSION
     object_name = '/'.join([REC['alignment_space'], library, newname])
@@ -285,9 +288,8 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
             ERR.write(err_text + "\n")
             COUNT['Duplicate objects'] += 1
             return False
-        else:
-            COUNT['Duplicate objects'] += 1
-            return 'Skipped'
+        COUNT['Duplicate objects'] += 1
+        return 'Skipped'
     UPLOADED_NAME[object_name] = complete_fpath
     url = '/'.join([AWS['base_aws_url'], bucket, object_name])
     url = url.replace(' ', '+')
@@ -363,7 +365,8 @@ def publishing_name_mapping():
         if ARG.LIBRARY == 'flylight_splitgal4_drivers':
             stmt = "SELECT DISTINCT published_to,original_line,line FROM image_data_mv"
             # There are issues with Lateral Horn
-            stmt = "SELECT DISTINCT published_to,line,publishing_name FROM image_data_mv WHERE published_to='Split GAL4' AND publishing_name IS NOT NULL"
+            stmt = "SELECT DISTINCT published_to,line,publishing_name FROM image_data_mv " \
+                   + "WHERE published_to='Split GAL4' AND publishing_name IS NOT NULL"
             lkey = 'line'
             mapcol = 'publishing_name'
             use_db = 'sage'
@@ -756,18 +759,17 @@ def set_name_and_filepath(smp):
     '''
     smp['filepath'] = smp['cdmPath']
     smp['name'] = os.path.basename(smp['filepath'])
-    return
     # Old code for API call
-    if 'flyem' not in ARG.LIBRARY:
-        smp['filepath'] = smp['cdmPath']
-        smp['name'] = os.path.basename(smp['filepath'])
-        return
-    if 'imageArchivePath' in smp:
-        smp['name'] = smp['imageName']
-        smp['filepath'] = '/'.join([smp['imageArchivePath'], smp['name']])
-    else:
-        smp['filepath'] = smp['imageName']
-        smp['name'] = os.path.basename(smp['filepath'])
+    #if 'flyem' not in ARG.LIBRARY:
+    #    smp['filepath'] = smp['cdmPath']
+    #    smp['name'] = os.path.basename(smp['filepath'])
+    #    return
+    #if 'imageArchivePath' in smp:
+    #    smp['name'] = smp['imageName']
+    #    smp['filepath'] = '/'.join([smp['imageArchivePath'], smp['name']])
+    #else:
+    #    smp['filepath'] = smp['imageName']
+    #    smp['name'] = os.path.basename(smp['filepath'])
 
 
 def upload_flyem_ancillary_files(smp, newname):
@@ -820,7 +822,7 @@ def upload_flylight_ancillary_files(smp, newname):
             seqsearch = re.search('-CH\d+-(\d+)', fname)
             seq = seqsearch[1]
         except Exception as err:
-            LOGGER.error("Could not extract sequence number from %s" % fname)
+            LOGGER.error("Could not extract sequence number from %s", fname)
             COUNT['Unparsable files'] += 1
             continue
         ancname = '.'.join(['-'.join([fbase, seq]), ext])
@@ -1003,6 +1005,30 @@ def upload_cdms_from_api():
                 LOGGER.error(str(err))
 
 
+def update_library_config(update_method):
+    ''' Update the config JSON for this library
+        Keyword arguments:
+          update_method: method (JACS API or JSON file)
+        Returns:
+          None
+    '''
+    if ARG.MANIFOLD not in LIBRARY[ARG.LIBRARY]:
+        LIBRARY[ARG.LIBRARY][ARG.MANIFOLD] = dict()
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['samples'] = COUNT['Samples']
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['images'] = COUNT['Samples'] \
+        - COUNT['Duplicate objects'] - COUNT['FlyEM flips']
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated'] = re.sub('\..*', '', str(datetime.now()))
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated_by'] = FULL_NAME
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['method'] = update_method
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['json_file'] = ARG.JSON if ARG.JSON else ''
+    if ARG.WRITE or ARG.CONFIG:
+        resp = requests.post(CONFIG['config']['url'] + 'importjson/cdm_library/' + ARG.LIBRARY,
+                             {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
+        if resp.status_code != 200:
+            LOGGER.error(resp.json()['rest']['message'])
+        else:
+            LOGGER.info("Updated cdm_library configuration")
+
 
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(
@@ -1059,8 +1085,8 @@ if __name__ == '__main__':
 
     initialize_program()
     START_TIME = datetime.now()
-    method = 'JSON file' if ARG.JSON else 'JACS API'
-    print("Processing %s on %s manifold from %s" % (ARG.LIBRARY, ARG.MANIFOLD, method))
+    UPDATE_METHOD = 'JSON file' if ARG.JSON else 'JACS API'
+    print("Processing %s on %s manifold from %s" % (ARG.LIBRARY, ARG.MANIFOLD, UPDATE_METHOD))
     if ARG.JSON:
         upload_cdms_from_file()
     else:
@@ -1069,20 +1095,7 @@ if __name__ == '__main__':
     print("Elapsed time: %s" %  (STOP_TIME - START_TIME))
     ERR.close()
     S3CP.close()
-    LIBRARY[ARG.LIBRARY]['manifold'] = ARG.MANIFOLD
-    LIBRARY[ARG.LIBRARY]['samples'] = COUNT['Samples']
-    LIBRARY[ARG.LIBRARY]['images'] = COUNT['Samples'] - COUNT['Duplicate objects'] - COUNT['FlyEM flips']
-    LIBRARY[ARG.LIBRARY]['updated'] = re.sub('\..*', '', str(datetime.now()))
-    LIBRARY[ARG.LIBRARY]['updated_by'] = FULL_NAME
-    LIBRARY[ARG.LIBRARY]['method'] = method
-    LIBRARY[ARG.LIBRARY]['json_file'] = ARG.JSON if ARG.JSON else ''
-    if ARG.WRITE or ARG.CONFIG:
-        resp = requests.post(CONFIG['config']['url'] + 'importjson/cdm_library/' + ARG.LIBRARY,
-                             {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
-        if resp.status_code != 200:
-            LOGGER.error(resp.json()['rest']['message'])
-        else:
-            LOGGER.info("Updated cdm_library configuration")
+    update_library_config(UPDATE_METHOD)
     for key in sorted(COUNT):
         print("%-20s %d" % (key + ':', COUNT[key]))
     if ANCILLARY_UPLOADS:
