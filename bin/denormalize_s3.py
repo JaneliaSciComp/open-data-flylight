@@ -22,7 +22,7 @@ from botocore.exceptions import ClientError
 import requests
 from simple_term_menu import TerminalMenu
 
-__version__ = '1.1.0'
+__version__ = '1.1.1'
 # Configuration
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = CDM = dict()
@@ -161,7 +161,7 @@ def get_parms():
     for cdmlib in CDM:
         if CDM[cdmlib]['name'].replace(' ', '_') == ARG.LIBRARY:
             print("Library %s was last modified on %s on %s"
-                  % (CDM[cdmlib]['name'], CDM[cdmlib]['manifold'], CDM[cdmlib]['updated']))
+                  % (CDM[cdmlib]['name'], ARG.MANIFOLD, CDM[cdmlib][ARG.MANIFOLD]['updated']))
             break
 
 

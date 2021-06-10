@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 import argparse
 from datetime import datetime
@@ -258,7 +258,7 @@ def get_s3_names(bucket, newname):
     '''
     if ARG.MANIFOLD != 'prod':
         bucket += '-' + ARG.MANIFOLD
-    library = LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['name'].replace(' ', '_')
+    library = LIBRARY[ARG.LIBRARY]['name'].replace(' ', '_')
     if ARG.LIBRARY in VERSION_REQUIRED:
         library += '_v' + ARG.VERSION
     object_name = '/'.join([REC['alignment_space'], library, newname])
