@@ -181,7 +181,7 @@ def get_parms():
                 continue
             liblist.append(cdmlib)
             text = cdmlib
-            if LIBRARY[cdmlib][ARG.MANIFOLD]['samples']:
+            if LIBRARY[cdmlib][ARG.MANIFOLD]['updated']:
                 text += " (last updated %s on %s)" \
                         % (LIBRARY[cdmlib][ARG.MANIFOLD]['updated'], ARG.MANIFOLD)
             cdmlist.append(text)
