@@ -60,7 +60,7 @@ def initialize_s3():
         Keyword arguments:
           None
         Returns:
-          S3 clientt
+          S3 client
     """
     if ARG.MANIFOLD == 'prod':
         sts_client = boto3.client('sts')
