@@ -35,14 +35,14 @@ GEN1_COLLECTION = ['flylight_gen1_gal4', 'flylight_gen1_lexa', 'flylight_vt_gal4
                    'flylight_vt_lexa_screen', 'flylight_gen1_mcfo_published',
                    'flylight_gen1_mcfo_case_1_gamma1_4']
 GEN1_NONSTD = ['RTDC2', 'TRH_G4']
-CONVERSION_REQUIRED = ['flyem_hemibrain', 'flyem_hemibrain_1_0', 'flyem_hemibrain_1_1']
+CONVERSION_REQUIRED = ['flyem_hemibrain', 'flyem_hemibrain_1_0', 'flyem_hemibrain_1_1', 'flyem_hemibrain_1_2_1']
 VERSION_REQUIRED = ['flyem_hemibrain']
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
          'Duplicate objects': 0, 'Unparsable files': 0, 'Updated on JACS': 0,
-         'FlyEM flips': 0}
+         'FlyEM flips': 0, 'Images': 0}
 SUBDIVISION = {'prefix': 1, 'counter': 0, 'limit': 100}
 TRANSACTIONS = dict()
 PNAME = dict()
@@ -288,6 +288,7 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
             ERR.write(err_text + "\n")
             COUNT['Duplicate objects'] += 1
             return False
+        LOGGER.debug("Already uploaded %s", object_name)
         COUNT['Duplicate objects'] += 1
         return 'Skipped'
     UPLOADED_NAME[object_name] = complete_fpath
@@ -295,10 +296,11 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     url = url.replace(' ', '+')
     KEY_LIST.append(object_name)
     S3CP.write("%s\t%s\n" % (complete_fpath, '/'.join([bucket, object_name])))
+    LOGGER.info("Upload " + object_name)
+    COUNT['Images'] += 1
     if (not ARG.AWS) and (not force):
         return url
     if not ARG.WRITE:
-        LOGGER.info(object_name)
         COUNT['Amazon S3 uploads'] += 1
         return url
     if newname.endswith('.png'):
@@ -517,7 +519,7 @@ def convert_file(sourcepath, newname):
         Returns:
           New filepath
     '''
-    LOGGER.debug("Converting %s", sourcepath)
+    LOGGER.debug("Converting %s to %s", sourcepath, newname)
     newpath = '/tmp/' + newname
     with Image.open(sourcepath) as image:
         image.save(newpath, 'PNG')
@@ -531,11 +533,15 @@ def process_hemibrain(smp, convert=True):
         Returns:
           New file name
     '''
-    bodyid, status = smp['name'].split('_')[0:2]
-    if bodyid.endswith('-'):
-        return False
-    newname = '%s-%s-%s-CDM.png' \
-    % (bodyid, status, REC['alignment_space'])
+    # Temporary!
+    #bodyid, status = smp['name'].split('_')[0:2]
+    bodyid = smp['publishedName']
+    #field = re.match('.*-(.*)_.*\..*', smp['name'])
+    #status = field[1]
+    #if bodyid.endswith('-'):
+    #    return False
+    newname = '%s-%s-CDM.png' \
+    % (bodyid, REC['alignment_space'])
     if convert:
         smp['filepath'] = convert_file(smp['filepath'], newname)
     else:
@@ -863,6 +869,7 @@ def upload_cdms_from_file():
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
+        LOGGER.info('----- ' + smp['imageName'])
         if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
             COUNT['Already on JACS'] += 1
             continue
@@ -910,15 +917,19 @@ def upload_cdms_from_file():
                             os.remove(smp['filepath'])
                         update_jacs(smp['_id'], url, turl)
                     else:
-                        LOGGER.info(url)
+                        LOGGER.info("Primary " + url)
             elif ARG.WRITE:
                 LOGGER.error("Did not transfer primary image %s", fname)
         # Ancillary images
         if 'flyem' in ARG.LIBRARY:
-            set_name_and_filepath(smp)
+            if '_FL' in smp['imageName']:
+                set_name_and_filepath(smp)
             newname = process_hemibrain(smp, False)
             if not newname:
                 continue
+            if newname.count('.') > 1:
+                LOGGER.critical("Internal error for newname computation")
+                sys.exit(-1)
             upload_flyem_ancillary_files(smp, newname)
             #newname = 'searchable_neurons/' + newname
             #dirpath = os.path.dirname(smp['filepath'])
@@ -1015,8 +1026,7 @@ def update_library_config(update_method):
     if ARG.MANIFOLD not in LIBRARY[ARG.LIBRARY]:
         LIBRARY[ARG.LIBRARY][ARG.MANIFOLD] = dict()
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['samples'] = COUNT['Samples']
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['images'] = COUNT['Samples'] \
-        - COUNT['Duplicate objects'] - COUNT['FlyEM flips']
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['images'] = COUNT['Images']
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated'] = re.sub('\..*', '', str(datetime.now()))
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated_by'] = FULL_NAME
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['method'] = update_method
