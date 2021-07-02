@@ -73,9 +73,8 @@ This area contains zip archives of alignment imagery. Files in FlyEM archives ar
 * Gen1_LexA_VT_R_JRC2018U.zip : 11,634 CDMs of the Gen1 LexA brain; R and VT lines that are aligned to the JFRC2018 unisex template. All images are from female flies. 
 * 40x_MCFO_release_PackBits_06052020.zip: 80,812 released MCFO GAL4 CDM that are aligned to the JFRC2018 unisex template. 
 * 40x_MCFO_release_gamma14_PackBits.zip: 80,812 released MCFO GAL4 CDM that are aligned to the JFRC2018 unisex template. Gamma correction of 1.4 applied for better visualization of dimmer neurons.
-* EM_Hemibrain11_0630_2020_radi2_PackBits_noNeuronName.zip: 32,777 CDM from the JFRC2018 unisex template aligned EM-hemibrain. The CDM file name has the EM-body ID and tracing state.
-* EM_Hemibrain11_0630_2020_radi2_PackBits_withNeuronName.zip: 32,777 CDM from the JFRC2018 unisex template aligned EM-hemibrain. The CDM file name has the EM-body ID, neuron name, and tracing state. This set requires newly released (ver. July 2020) [CDM search Fiji plugin](https://github.com/JaneliaSciComp/ColorMIP_Mask_Search/blob/master/Color_MIP_Mask_Search.jar).
-* Hemibrain1.1_SWC_Skeleton: 32,777 SWC files translated to the JRC2018 unisex template space. These files can opened in [VVDviewer 3D/4D rendering software](https://github.com/takashi310/VVD_Viewer/releases) to overlay with LM data (.h5j files from [FlyLight website](https://www.janelia.org/project-team/flylight)).
+* EM_Hemibrain_Ver1.2_CDM_PackBits_gradient.zip: 44,476 CDM (30,789 original EM-CDM + 13,687 FL) from the JFRC2018 unisex template aligned EM-hemibrain. The CDM with _FL name is with the neuron crossing midline; for better matching with symmetrical GAL4 expressed neurons, we X-flipped the EM neuron and added the signals to the original CDM image. The CDM file name has the EM-body ID and tracing state.
+* EM_Hemibrain1.2_SWC.zip: 30,789 SWC files translated to the JRC2018 unisex template space. These files can opened in [VVDviewer 3D/4D rendering software](https://github.com/takashi310/VVD_Viewer/releases) to overlay with LM data (.h5j files from [FlyLight website](https://www.janelia.org/project-team/flylight)).
 * JRC2018_UNISEX_20x_HR.nrrd: The [template](https://www.janelia.org/publication/an-unbiased-template-of-the-drosophila-brain-and-ventral-nerve-cord) used for all brain CDM alignments.
 
 #### VNC
