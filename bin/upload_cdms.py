@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 
 import argparse
 from datetime import datetime
@@ -256,7 +256,9 @@ def get_s3_names(bucket, newname):
         Returns:
           bucket and object name
     '''
-    if ARG.MANIFOLD != 'prod':
+    if ARG.INTERNAL:
+        bucket += '-int'
+    elif ARG.MANIFOLD != 'prod':
         bucket += '-' + ARG.MANIFOLD
     library = LIBRARY[ARG.LIBRARY]['name'].replace(' ', '_')
     if ARG.LIBRARY in VERSION_REQUIRED:
@@ -869,7 +871,7 @@ def upload_cdms_from_file():
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
-        LOGGER.info('----- ' + smp['imageName'])
+        LOGGER.info('----- ', smp['imageName'])
         if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
             COUNT['Already on JACS'] += 1
             continue
@@ -917,7 +919,7 @@ def upload_cdms_from_file():
                             os.remove(smp['filepath'])
                         update_jacs(smp['_id'], url, turl)
                     else:
-                        LOGGER.info("Primary " + url)
+                        LOGGER.info("Primary ", url)
             elif ARG.WRITE:
                 LOGGER.error("Did not transfer primary image %s", fname)
         # Ancillary images
@@ -1049,6 +1051,8 @@ if __name__ == '__main__':
                         help='JSON file')
     PARSER.add_argument('--release', dest='RELEASE', action='store',
                         help='ALPS release')
+    PARSER.add_argument('--internal', dest='INTERNAL', action='store_true',
+                        default=False, help='Upload to internal bucket')
     PARSER.add_argument('--gamma', dest='GAMMA', action='store',
                         default='gamma1_4', help='Variant key for gamma image to replace cdmPath')
     PARSER.add_argument('--rewrite', dest='REWRITE', action='store_true',
