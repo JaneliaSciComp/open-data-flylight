@@ -1,9 +1,9 @@
 boto3==1.17.92
 botocore==1.20.92
 colorlog==5.0.1
-dask==2021.6.0
+dask>=2021.3.0
 diagnostics==0.2.4
-distributed==2021.6.0
+distributed>=2021.3.0
 mysqlclient==1.4.6
 Pillow==8.2.0
 PyJWT==1.7.1
