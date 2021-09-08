@@ -38,6 +38,7 @@ GEN1_NONSTD = ['RTDC2', 'TRH_G4']
 CONVERSION_REQUIRED = ['flyem_hemibrain', 'flyem_hemibrain_1_0', 'flyem_hemibrain_1_1', 'flyem_hemibrain_1_2_1']
 VERSION_REQUIRED = ['flyem_hemibrain']
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
+TEMPORARY_DIR = "/nrs/scicompsoft/cdm_upload/"
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
@@ -522,7 +523,7 @@ def convert_file(sourcepath, newname):
           New filepath
     '''
     LOGGER.debug("Converting %s to %s", sourcepath, newname)
-    newpath = '/tmp/' + newname
+    newpath = TEMPORARY_DIR + newname
     with Image.open(sourcepath) as image:
         image.save(newpath, 'PNG')
     return newpath
