@@ -25,6 +25,7 @@ from PIL import Image
 # Configuration
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 JSONDIR = "/groups/scicompsoft/informatics/data/release_libraries"
+TEMPORARY_DIR = "/nrs/scicompsoft/cdm_upload/"
 AWS = dict()
 LIBRARY = dict()
 DATABASE = 'sage'
@@ -35,7 +36,7 @@ GEN1_COLLECTION = ['flylight_gen1_gal4', 'flylight_gen1_lexa', 'flylight_vt_gal4
                    'flylight_vt_lexa_screen', 'flylight_gen1_mcfo_published',
                    'flylight_gen1_mcfo_case_1_gamma1_4']
 GEN1_NONSTD = ['RTDC2', 'TRH_G4']
-VERSION_REQUIRED = ['flyem_hemibrain', 'flyem_vnc']
+VERSION_REQUIRED = ['flyem_hemibrain']
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
@@ -526,7 +527,7 @@ def convert_file(sourcepath, newname):
           New filepath
     '''
     LOGGER.debug("Converting %s to %s", sourcepath, newname)
-    newpath = '/tmp/' + newname
+    newpath = TEMPORARY_DIR + newname
     with Image.open(sourcepath) as image:
         image.save(newpath, 'PNG')
     return newpath
