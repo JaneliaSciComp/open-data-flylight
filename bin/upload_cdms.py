@@ -35,10 +35,8 @@ GEN1_COLLECTION = ['flylight_gen1_gal4', 'flylight_gen1_lexa', 'flylight_vt_gal4
                    'flylight_vt_lexa_screen', 'flylight_gen1_mcfo_published',
                    'flylight_gen1_mcfo_case_1_gamma1_4']
 GEN1_NONSTD = ['RTDC2', 'TRH_G4']
-CONVERSION_REQUIRED = ['flyem_hemibrain', 'flyem_hemibrain_1_0', 'flyem_hemibrain_1_1', 'flyem_hemibrain_1_2_1']
-VERSION_REQUIRED = ['flyem_hemibrain']
+VERSION_REQUIRED = ['flyem_hemibrain', 'flyem_vnc']
 CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
-TEMPORARY_DIR = "/nrs/scicompsoft/cdm_upload/"
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
@@ -193,14 +191,19 @@ def get_parms():
             sys.exit(0)
         ARG.LIBRARY = liblist[chosen].replace(' ', '_')
     if not ARG.JSON:
+        print("Select a JSON file:")
+        json_base = JSONDIR + "/v2.2/" #allow user to enter NB version
         jsonlist = list(map(lambda jfile: jfile.split('/')[-1],
-                            glob.glob(JSONDIR + "/*.json")))
+                            glob.glob(json_base + "/*.json")))
         jsonlist.sort()
         jsonlist.insert(0, "None (use API)")
         terminal_menu = TerminalMenu(jsonlist)
         chosen = terminal_menu.show()
         if chosen:
-            ARG.JSON = '/'.join([JSONDIR, jsonlist[chosen]])
+            ARG.JSON = '/'.join([json_base, jsonlist[chosen]])
+        if chosen is None:
+            LOGGER.error("No JSON selected")
+            sys.exit(0)
     if not ARG.MANIFOLD:
         print("Select manifold to run on:")
         manifold = ['dev', 'prod']
@@ -523,7 +526,7 @@ def convert_file(sourcepath, newname):
           New filepath
     '''
     LOGGER.debug("Converting %s to %s", sourcepath, newname)
-    newpath = TEMPORARY_DIR + newname
+    newpath = '/tmp/' + newname
     with Image.open(sourcepath) as image:
         image.save(newpath, 'PNG')
     return newpath
@@ -872,14 +875,18 @@ def upload_cdms_from_file():
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
-        LOGGER.info('----- ', smp['imageName'])
+        if 'imageName' not in smp:
+            LOGGER.critical("Missing imageName in sample")
+            print(smp)
+            sys.exit(-1)
+        LOGGER.info('----- %s', smp['imageName'])
         if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
             COUNT['Already on JACS'] += 1
             continue
         REC['alignment_space'] = smp['alignmentSpace']
         # Primary image
         skip_primary = False
-        if 'flyem' in ARG.LIBRARY:
+        if 'flyem_' in ARG.LIBRARY:
             if '_FL' in smp['imageName']:
                 COUNT['FlyEM flips'] += 1
                 skip_primary = True
@@ -909,22 +916,22 @@ def upload_cdms_from_file():
             dirpath = os.path.dirname(smp['filepath'])
             fname = os.path.basename(smp['filepath'])
             force = False
-            if 'flyem' in ARG.LIBRARY and not ARG.AWS:
+            if 'flyem_' in ARG.LIBRARY and not ARG.AWS:
                 force = True
             url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname, force)
             if url:
                 if url != 'Skipped':
                     turl = produce_thumbnail(dirpath, fname, newname, url)
                     if ARG.WRITE:
-                        if ARG.AWS and (ARG.LIBRARY in CONVERSION_REQUIRED):
+                        if ARG.AWS and ('flyem_' in ARG.LIBRARY):
                             os.remove(smp['filepath'])
                         update_jacs(smp['_id'], url, turl)
                     else:
-                        LOGGER.info("Primary ", url)
+                        LOGGER.info("Primary %s", url)
             elif ARG.WRITE:
                 LOGGER.error("Did not transfer primary image %s", fname)
         # Ancillary images
-        if 'flyem' in ARG.LIBRARY:
+        if 'flyem_' in ARG.LIBRARY:
             if '_FL' in smp['imageName']:
                 set_name_and_filepath(smp)
             newname = process_hemibrain(smp, False)
@@ -970,7 +977,7 @@ def upload_cdms_from_api():
                 #LOGGER.warning("%s is already on AWS S3", smp['publicThumbnailUrl'])
                 continue
         REC['alignment_space'] = smp['alignmentSpace']
-        if 'flyem' in ARG.LIBRARY:
+        if 'flyem_' in ARG.LIBRARY:
             newname = process_hemibrain(smp)
             if not newname:
                 continue
@@ -985,7 +992,7 @@ def upload_cdms_from_api():
         if url:
             turl = produce_thumbnail(dirpath, fname, newname, url)
             if ARG.WRITE:
-                if ARG.AWS and (ARG.LIBRARY in CONVERSION_REQUIRED):
+                if ARG.AWS and ('flyem_' in ARG.LIBRARY):
                     os.remove(smp['filepath'])
                 update_jacs(smp['_id'], url, turl)
             else:
