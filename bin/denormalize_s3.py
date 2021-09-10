@@ -98,10 +98,11 @@ def upload_to_aws(s3r, body, object_name):
         bucket = s3r.Bucket(ARG.BUCKET)
         bucket.put_object(Body=body,
                           Key=object_name,
-                          ACL='public-read',
+                          #ACL='public-read',
                           ContentType='application/json',
                           Tagging=TAGS)
     except ClientError as err:
+        LOGGER.error("Could not upload %s", object_name)
         LOGGER.error(str(err))
 
 
