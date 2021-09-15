@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '1.0.3'
+__version__ = '1.0.4'
 
 import argparse
 from datetime import datetime
@@ -28,7 +28,6 @@ AWS = dict()
 CLOAD = dict()
 LIBRARY = dict()
 # Database
-DATABASE = 'sage'
 CONN = dict()
 CURSOR = dict()
 # General use
@@ -189,13 +188,12 @@ def get_parms():
         jsonlist = list(map(lambda jfile: jfile.split('/')[-1],
                             glob.glob(json_base + "/*.json")))
         jsonlist.sort()
-        jsonlist.insert(0, "None (use API)")
         terminal_menu = TerminalMenu(jsonlist)
         chosen = terminal_menu.show()
         if chosen:
             ARG.JSON = '/'.join([json_base, jsonlist[chosen]])
         if chosen is None:
-            LOGGER.error("No JSON selected")
+            LOGGER.error("No JSON file selected")
             sys.exit(0)
     if not ARG.MANIFOLD:
         print("Select manifold to run on:")
@@ -211,7 +209,7 @@ def get_parms():
 def initialize_program():
     """ Initialize
     """
-    global AWS, CLOAD, CONFIG, DATABASE, FULL_NAME, LIBRARY, TAGS # pylint: disable=W0603
+    global AWS, CLOAD, CONFIG, FULL_NAME, LIBRARY, TAGS # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
     data = call_responder('config', 'config/upload_cdms')
@@ -223,15 +221,11 @@ def initialize_program():
     get_parms()
     TAGS = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
            + 'VERSION=' + __version__
-    if ARG.LIBRARY == 'flylight_splitgal4_drivers':
-        DATABASE = 'mbew'
     data = call_responder('config', 'config/db_config')
     manifold = 'prod'
     if ARG.LIBRARY == 'flylight_splitgal4_drivers':
         manifold = 'staging'
-    (CONN[DATABASE], CURSOR[DATABASE]) = db_connect(data['config'][DATABASE][manifold])
-    if DATABASE != 'sage':
-        (CONN['sage'], CURSOR['sage']) = db_connect(data['config']['sage']['prod'])
+    (CONN['sage'], CURSOR['sage']) = db_connect(data['config']['sage']['prod'])
     if ARG.LIBRARY not in LIBRARY:
         LOGGER.critical("Unknown library %s", ARG.LIBRARY)
         sys.exit(-1)
@@ -245,6 +239,17 @@ def initialize_program():
     FULL_NAME = response['full_name']
     LOGGER.info("Authenticated as %s", FULL_NAME)
     initialize_s3()
+
+
+def log_error(err_text):
+    ''' Log an error and write to error output file
+        Keyword arguments:
+          err_text: error message
+        Returns:
+          None
+    '''
+    LOGGER.error(err_text)
+    ERR.write(err_text + "\n")
 
 
 def get_s3_names(bucket, newname):
@@ -297,7 +302,7 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     url = url.replace(' ', '+')
     KEY_LIST.append(object_name)
     S3CP.write("%s\t%s\n" % (complete_fpath, '/'.join([bucket, object_name])))
-    LOGGER.info("Upload " + object_name)
+    LOGGER.info("Upload %s", object_name)
     COUNT['Images'] += 1
     if (not ARG.AWS) and (not force):
         return url
@@ -317,13 +322,6 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
         S3_CLIENT.upload_file(complete_fpath, bucket,
                               object_name,
                               ExtraArgs=payload)
-        #obj = S3_RESOURCE.Object(bucket, object_name)
-        #obj.copy_from(CopySource={'Bucket': bucket,
-        #                          'Key': object_name},
-        #              MetadataDirective="REPLACE",
-        #              ContentType=mimetype)
-        #object_acl = S3_RESOURCE.ObjectAcl(bucket, object_name)
-        #object_acl.put(ACL='public-read')
     except ClientError as err:
         LOGGER.critical(err)
         return False
@@ -331,92 +329,16 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     return url
 
 
-def degenerate_line(line0):
-    ''' Return the degenerate line name
-        Keyword arguments:
-          line: full line name
-        Returns:
-          Degenerate line name
-    '''
-    comp = line0.split('_')
-    return '_'.join(comp[0:2])
-
-
-def get_r_line(line0):
-    ''' Return the Gen1 line name
-        Keyword arguments:
-          line0: line name
-        Returns:
-          Gen1 line name
-    '''
-    r_line = 'R' + line0.split('_')[1]
-    return r_line
-
-
-def publishing_name_mapping():
-    ''' Create a mapping of lines to publishing names
-        Keyword arguments:
-          None
-        Returns:
-          mapping dictionary
-    '''
-    mapping = dict()
-    use_db = DATABASE
-    if '_vt_' in ARG.LIBRARY or ARG.LIBRARY == 'flylight_gen1_mcfo_published':
-        data = call_responder('config', 'config/vt_conversion')
-        vtm = data['config']
-        for vtid in vtm:
-            mapping['BJD_' + vtm[vtid]] = vtid
-    else:
-        if ARG.LIBRARY == 'flylight_splitgal4_drivers':
-            stmt = "SELECT DISTINCT published_to,original_line,line FROM image_data_mv"
-            # There are issues with Lateral Horn
-            stmt = "SELECT DISTINCT published_to,line,publishing_name FROM image_data_mv " \
-                   + "WHERE published_to='Split GAL4' AND publishing_name IS NOT NULL"
-            lkey = 'line'
-            mapcol = 'publishing_name'
-            use_db = 'sage'
-        else:
-            stmt = "SELECT DISTINCT published_to,line,publishing_name FROM image_data_mv " \
-                   + "WHERE published_to IS NOT NULL"
-            lkey = 'line'
-            mapcol = 'publishing_name'
-        try:
-            CURSOR[use_db].execute(stmt)
-            rows = CURSOR[use_db].fetchall()
-        except MySQLdb.Error as err:
-            sql_error(err)
-        for row in rows:
-            if not row[lkey]:
-                #row[lkey] = row[mapcol]
-                print(row)
-                LOGGER.error("Missing original line for %s", row[mapcol])
-                sys.exit(-1)
-            if 'FLEW' in row['published_to']:
-                row[lkey] = degenerate_line(row[lkey])
-                if not row[mapcol]:
-                    row[mapcol] = get_r_line(row[lkey])
-                row[mapcol] = row[mapcol].replace('L', '')
-            mapping[row[lkey]] = row[mapcol]
-            if not row[mapcol]:
-                LOGGER.warning("Missing publishing name for %s", row[lkey])
-    return mapping
-
-
 def get_line_mapping():
     ''' Create a mapping of lines to publishing names, drivers, and releases
         Keyword arguments:
           None
         Returns:
-          mapping dictionary
           driver dictionary
           release dictionary
     '''
     driver = dict()
     release = dict()
-    LOGGER.info("Getting line/publishing name mapping")
-    mapping = publishing_name_mapping()
-
     # Populate driver dict
     LOGGER.info("Getting line/driver mapping")
     try:
@@ -438,7 +360,7 @@ def get_line_mapping():
             sql_error(err)
         for row in rows:
             release[row['line']] = row['alps']
-    return mapping, driver, release
+    return driver, release
 
 
 def get_image_mapping():
@@ -462,11 +384,10 @@ def get_image_mapping():
     return published_ids
 
 
-def get_publishing_name(sdata, mapping):
+def get_publishing_name(sdata):
     ''' Return a publishing name for this sample
         Keyword arguments:
           sdata: sample record
-          mapping: publishing name mapping dictionary
         Returns:
           publishing name
     '''
@@ -492,26 +413,11 @@ def get_publishing_name(sdata, mapping):
                 publishing_name = field[1]
             publishing_name = publishing_name.replace('-', '_')
             if not (re.match('^R\d+[A-H]\d+$', publishing_name) \
-               or re.match('^VT\d+$', publishing_name) or (publishing_name in CLOAD['gen1_nonstd'])):
+               or re.match('^VT\d+$', publishing_name) \
+               or (publishing_name in CLOAD['gen1_nonstd'])):
                 err_text = "Bad publishing name %s for %s" % (publishing_name, sdata[0]['line'])
                 LOGGER.error(err_text)
                 ERR.write(err_text + "\n")
-    return publishing_name
-    # Old code
-    #pylint: disable=W0101
-    if sdata[0]['line'] in mapping:
-        publishing_name = mapping[sdata[0]['line']]
-    elif ARG.LIBRARY in CLOAD['gen1_collection']:
-        lookup = degenerate_line(sdata[0]['line'])
-        if mapping.get(lookup):
-            publishing_name = mapping[lookup]
-        else:
-            publishing_name = get_r_line(sdata[0]['line'])
-    elif 'JRC_SS' in sdata[0]['line']:
-        short = sdata[0]['line'].replace('JRC_SS', 'SS')
-        if short in mapping:
-            publishing_name = short
-    LOGGER.debug("%s -> %s", sdata[0]['line'], publishing_name)
     return publishing_name
 
 
@@ -530,8 +436,8 @@ def convert_file(sourcepath, newname):
     return newpath
 
 
-def process_hemibrain(smp, convert=True):
-    ''' Return the file name for a hemibrain sample.
+def process_flyem(smp, convert=True):
+    ''' Return the file name for a FlyEM sample.
         Keyword arguments:
           smp: sample record
         Returns:
@@ -594,11 +500,10 @@ def translate_slide_code(isc, line0):
     return isc
 
 
-def process_light(smp, mapping, driver, release, published_ids):
+def process_light(smp, driver, release, published_ids):
     ''' Return the file name for a light microscopy sample.
         Keyword arguments:
           smp: sample record
-          mapping: publishing name mapping dictionary
           driver: driver mapping dictionary
           release: release mapping dictionary
           published_ids: sample dictionary
@@ -631,12 +536,7 @@ def process_light(smp, mapping, driver, release, published_ids):
         ERR.write(err_text + "\n")
         if ARG.WRITE:
             return False
-    # PLUG
-    #if ('16H01' in sdata[0]['line']) or ('UAH' in sdata[0]['line']):
-    #    print(sdata[0]['line'])
-    #else:
-    #    return False
-    publishing_name = get_publishing_name(sdata, mapping)
+    publishing_name = get_publishing_name(sdata)
     if publishing_name == 'No Consensus':
         COUNT['No Consensus'] += 1
         err_text = "No consensus line for sample %s (%s)" % (sid, sdata[0]['line'])
@@ -655,6 +555,12 @@ def process_light(smp, mapping, driver, release, published_ids):
     else:
         PNAME[publishing_name] += 1
     REC['line'] = publishing_name
+    # Compare JSON record to JACS
+    for item in ['anatomicalArea', 'gender', 'objective', 'slideCode']:
+        if smp[item] != sdata[0][item]:
+            log_error("%s does not match for sample %s (%s, %s)" \
+                      % (item, sid, smp[item], sdata[0][item]))
+            return False
     #REC['slide_code'] = translate_slide_code(sdata[0]['slideCode'], sdata[0]['line'])
     REC['slide_code'] = sdata[0]['slideCode']
     REC['gender'] = sdata[0]['gender']
@@ -769,17 +675,6 @@ def set_name_and_filepath(smp):
     '''
     smp['filepath'] = smp['cdmPath']
     smp['name'] = os.path.basename(smp['filepath'])
-    # Old code for API call
-    #if 'flyem' not in ARG.LIBRARY:
-    #    smp['filepath'] = smp['cdmPath']
-    #    smp['name'] = os.path.basename(smp['filepath'])
-    #    return
-    #if 'imageArchivePath' in smp:
-    #    smp['name'] = smp['imageName']
-    #    smp['filepath'] = '/'.join([smp['imageArchivePath'], smp['name']])
-    #else:
-    #    smp['filepath'] = smp['imageName']
-    #    smp['name'] = os.path.basename(smp['filepath'])
 
 
 def upload_flyem_ancillary_files(smp, newname):
@@ -809,7 +704,7 @@ def upload_flyem_ancillary_files(smp, newname):
             ancname = ancname.replace('searchable_neurons/',
                                       'searchable_neurons/%s/' % str(SUBDIVISION['prefix']))
             SUBDIVISION['counter'] += 1
-        url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
+        _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
         if ancillary not in ANCILLARY_UPLOADS:
             ANCILLARY_UPLOADS[ancillary] = 1
         else:
@@ -838,7 +733,7 @@ def upload_flylight_ancillary_files(smp, newname):
             # MB002B-20121003_31_B2-f_20x_c1_01
             seqsearch = re.search('-CH\d+-(\d+)', fname)
             seq = seqsearch[1]
-        except Exception as err:
+        except Exception as _:
             LOGGER.error("Could not extract sequence number from %s file %s", ancillary, fname)
             COUNT['Unparsable files'] += 1
             continue
@@ -855,7 +750,7 @@ def upload_flylight_ancillary_files(smp, newname):
             ancname = ancname.replace('searchable_neurons/',
                                       'searchable_neurons/%s/' % str(SUBDIVISION['prefix']))
             SUBDIVISION['counter'] += 1
-        url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
+        _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
         if ancillary not in ANCILLARY_UPLOADS:
             ANCILLARY_UPLOADS[ancillary] = 1
         else:
@@ -870,7 +765,7 @@ def upload_cdms_from_file():
         Returns:
           None
     '''
-    mapping, driver, release = get_line_mapping()
+    driver, release = get_line_mapping()
     published_ids = get_image_mapping()
     jfile = open(ARG.JSON, 'r')
     data = json.load(jfile)
@@ -899,7 +794,7 @@ def upload_cdms_from_file():
                 skip_primary = True
             else:
                 set_name_and_filepath(smp)
-                newname = process_hemibrain(smp)
+                newname = process_flyem(smp)
                 if not newname:
                     err_text = "No publishing name for FlyEM %s" % smp['name']
                     LOGGER.error(err_text)
@@ -911,7 +806,7 @@ def upload_cdms_from_file():
                 smp['cdmPath'] = smp['variants'][ARG.GAMMA]
                 del smp['variants'][ARG.GAMMA]
             set_name_and_filepath(smp)
-            newname = process_light(smp, mapping, driver, release, published_ids)
+            newname = process_light(smp, driver, release, published_ids)
             if not newname:
                 err_text = "No publishing name for FlyLight %s" % smp['name']
                 LOGGER.error(err_text)
@@ -922,9 +817,6 @@ def upload_cdms_from_file():
         if not skip_primary:
             dirpath = os.path.dirname(smp['filepath'])
             fname = os.path.basename(smp['filepath'])
-            force = False
-            if 'flyem_' in ARG.LIBRARY and not ARG.AWS:
-                force = True
             url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
             if url:
                 if url != 'Skipped':
@@ -941,7 +833,7 @@ def upload_cdms_from_file():
         if 'flyem_' in ARG.LIBRARY:
             if '_FL' in smp['imageName']:
                 set_name_and_filepath(smp)
-            newname = process_hemibrain(smp, False)
+            newname = process_flyem(smp, False)
             if not newname:
                 continue
             if newname.count('.') > 1:
@@ -956,87 +848,10 @@ def upload_cdms_from_file():
             upload_flylight_ancillary_files(smp, newname)
 
 
-def upload_cdms_from_api():
-    ''' Upload color depth MIPs to AWS S3. The list of color depth MIPs comes from the JACS API.
-        Keyword arguments:
-          None
-        Returns:
-          None
-    '''
-    mapping, driver, release = get_line_mapping()
-    published_ids = get_image_mapping()
-    samples = call_responder('jacsv2', 'colorDepthMIPs?libraryName=' + ARG.LIBRARY \
-                             + '&alignmentSpace=' + CDM_ALIGNMENT_SPACE, '', True)
-    total_objects = 0
-    print("Samples for %s: %d" % (ARG.LIBRARY, len(samples)))
-    for smp in tqdm(samples):
-        if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
-            break
-        COUNT['Samples'] += 1
-        if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
-            COUNT['Already on JACS'] += 1
-            continue
-        if ARG.CHECK and 'publicThumbnailUrl' in smp:
-            thumb = smp['publicThumbnailUrl']
-            request = requests.get(thumb)
-            if request.status_code == 200:
-                COUNT['Already on S3'] += 1
-                #LOGGER.warning("%s is already on AWS S3", smp['publicThumbnailUrl'])
-                continue
-        REC['alignment_space'] = smp['alignmentSpace']
-        if 'flyem_' in ARG.LIBRARY:
-            newname = process_hemibrain(smp)
-            if not newname:
-                continue
-        else:
-            newname = process_light(smp, mapping, driver, release, published_ids)
-            if not newname:
-                continue
-        dirpath = os.path.dirname(smp['filepath'])
-        fname = os.path.basename(smp['filepath'])
-        url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
-        total_objects += 1
-        if url:
-            turl = produce_thumbnail(dirpath, fname, newname, url)
-            if ARG.WRITE:
-                if ARG.AWS and ('flyem_' in ARG.LIBRARY):
-                    os.remove(smp['filepath'])
-                update_jacs(smp['_id'], url, turl)
-            else:
-                LOGGER.info(url)
-        elif ARG.WRITE:
-            LOGGER.error("Did not transfer %s", fname)
-    if COUNT['Already on JACS']:
-        LOGGER.warning("Denormalization files WILL NOT be loaded - run denormalize_s3.py to upload")
-        return
-    if KEY_LIST:
-        bucket_name, object_name = get_s3_names(AWS['s3_bucket']['cdm'], CLOAD['keyfile'])
-        LOGGER.info("Uploading %s to the %s bucket", object_name, bucket_name)
-        if ARG.WRITE:
-            try:
-                bucket = S3_RESOURCE.Bucket(bucket_name)
-                bucket.put_object(Body=json.dumps(KEY_LIST, indent=4),
-                                  Key=object_name,
-                                  ACL='public-read',
-                                  ContentType='application/json',
-                                  Tagging=TAGS)
-            except ClientError as err:
-                LOGGER.error(str(err))
-            try:
-                object_name = CLOAD['count_file'] 
-                bucket.put_object(Body=json.dumps({"objectCount": total_objects}, indent=4),
-                                  Key=object_name,
-                                  ACL='public-read',
-                                  ContentType='application/json',
-                                  Tagging=TAGS)
-            except ClientError as err:
-                LOGGER.error(str(err))
-
-
-def update_library_config(update_method):
+def update_library_config():
     ''' Update the config JSON for this library
         Keyword arguments:
-          update_method: method (JACS API or JSON file)
+          None
         Returns:
           None
     '''
@@ -1046,10 +861,12 @@ def update_library_config(update_method):
         LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON] = dict()
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['samples'] = COUNT['Samples']
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['images'] = COUNT['Images']
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated'] = re.sub('\..*', '', str(datetime.now()))
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated'] = LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated']
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated'] = re.sub('\..*', '',
+                                                                     str(datetime.now()))
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated'] = \
+        LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated']
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated_by'] = FULL_NAME
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['method'] = update_method
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['method'] = 'JSON file'
     if ARG.WRITE or ARG.CONFIG:
         resp = requests.post(CONFIG['config']['url'] + 'importjson/cdm_library/' + ARG.LIBRARY,
                              {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
@@ -1120,17 +937,13 @@ if __name__ == '__main__':
 
     initialize_program()
     START_TIME = datetime.now()
-    UPDATE_METHOD = 'JSON file' if ARG.JSON else 'JACS API'
-    print("Processing %s on %s manifold from %s" % (ARG.LIBRARY, ARG.MANIFOLD, UPDATE_METHOD))
-    if ARG.JSON:
-        upload_cdms_from_file()
-    else:
-        upload_cdms_from_api()
+    print("Processing %s on %s manifold" % (ARG.LIBRARY, ARG.MANIFOLD))
+    upload_cdms_from_file()
     STOP_TIME = datetime.now()
     print("Elapsed time: %s" %  (STOP_TIME - START_TIME))
     ERR.close()
     S3CP.close()
-    update_library_config(UPDATE_METHOD)
+    update_library_config()
     for key in sorted(COUNT):
         print("%-20s %d" % (key + ':', COUNT[key]))
     if ANCILLARY_UPLOADS:
