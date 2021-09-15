@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '1.0.2'
+__version__ = '1.0.3'
 
 import argparse
 from datetime import datetime
@@ -24,20 +24,14 @@ from PIL import Image
 
 # Configuration
 CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
-JSONDIR = "/groups/scicompsoft/informatics/data/release_libraries"
-TEMPORARY_DIR = "/nrs/scicompsoft/cdm_upload/"
 AWS = dict()
+CLOAD = dict()
 LIBRARY = dict()
+# Database
 DATABASE = 'sage'
 CONN = dict()
 CURSOR = dict()
-
-GEN1_COLLECTION = ['flylight_gen1_gal4', 'flylight_gen1_lexa', 'flylight_vt_gal4_screen',
-                   'flylight_vt_lexa_screen', 'flylight_gen1_mcfo_published',
-                   'flylight_gen1_mcfo_case_1_gamma1_4']
-GEN1_NONSTD = ['RTDC2', 'TRH_G4']
-VERSION_REQUIRED = ['flyem_hemibrain']
-CDM_ALIGNMENT_SPACE = 'JRC2018_Unisex_20x_HR'
+# General use
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
@@ -53,8 +47,6 @@ MAX_SIZE = 500
 CREATE_THUMBNAIL = False
 S3_SECONDS = 60 * 60 * 12
 ANCILLARY_UPLOADS = dict()
-COUNTFILE = "counts_denormalized.json"
-KEYFILE = "keys_denormalized.json"
 UPLOADED_NAME = dict()
 KEY_LIST = list()
 
@@ -178,7 +170,7 @@ def get_parms():
         liblist = list()
         for cdmlib in LIBRARY:
             if ARG.MANIFOLD not in LIBRARY[cdmlib]:
-                continue
+                LIBRARY[cdmlib][ARG.MANIFOLD] = {'updated': 'Never'}
             liblist.append(cdmlib)
             text = cdmlib
             if LIBRARY[cdmlib][ARG.MANIFOLD]['updated']:
@@ -193,7 +185,7 @@ def get_parms():
         ARG.LIBRARY = liblist[chosen].replace(' ', '_')
     if not ARG.JSON:
         print("Select a JSON file:")
-        json_base = JSONDIR + "/v2.2/" #allow user to enter NB version
+        json_base = CLOAD['json_dir'] + "/%s/" % (ARG.NB)
         jsonlist = list(map(lambda jfile: jfile.split('/')[-1],
                             glob.glob(json_base + "/*.json")))
         jsonlist.sort()
@@ -219,9 +211,11 @@ def get_parms():
 def initialize_program():
     """ Initialize
     """
-    global AWS, CONFIG, DATABASE, FULL_NAME, LIBRARY, TAGS # pylint: disable=W0603
+    global AWS, CLOAD, CONFIG, DATABASE, FULL_NAME, LIBRARY, TAGS # pylint: disable=W0603
     data = call_responder('config', 'config/rest_services')
     CONFIG = data['config']
+    data = call_responder('config', 'config/upload_cdms')
+    CLOAD = data['config']
     data = call_responder('config', 'config/aws')
     AWS = data['config']
     data = call_responder('config', 'config/cdm_library')
@@ -266,7 +260,7 @@ def get_s3_names(bucket, newname):
     elif ARG.MANIFOLD != 'prod':
         bucket += '-' + ARG.MANIFOLD
     library = LIBRARY[ARG.LIBRARY]['name'].replace(' ', '_')
-    if ARG.LIBRARY in VERSION_REQUIRED:
+    if ARG.LIBRARY in CLOAD['version_required']:
         library += '_v' + ARG.VERSION
     object_name = '/'.join([REC['alignment_space'], library, newname])
     return bucket, object_name
@@ -317,9 +311,12 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     else:
         mimetype = 'image/tiff'
     try:
+        payload = {'ContentType': mimetype}
+        if ARG.MANIFOLD == 'prod':
+            payload['ACL'] = 'public-read'
         S3_CLIENT.upload_file(complete_fpath, bucket,
                               object_name,
-                              ExtraArgs={'ContentType': mimetype, 'ACL': 'public-read'})
+                              ExtraArgs=payload)
         #obj = S3_RESOURCE.Object(bucket, object_name)
         #obj.copy_from(CopySource={'Bucket': bucket,
         #                          'Key': object_name},
@@ -402,7 +399,7 @@ def publishing_name_mapping():
                 row[mapcol] = row[mapcol].replace('L', '')
             mapping[row[lkey]] = row[mapcol]
             if not row[mapcol]:
-                LOGGER.error("Missing publishing name for %s", row[lkey])
+                LOGGER.warning("Missing publishing name for %s", row[lkey])
     return mapping
 
 
@@ -485,17 +482,17 @@ def get_publishing_name(sdata, mapping):
         sys.exit(-1)
     publishing_name = ''
     if 'publishingName' in sdata[0] and sdata[0]['publishingName']:
-        if ARG.LIBRARY in GEN1_COLLECTION and sdata[0]['publishingName'].endswith('L'):
+        if ARG.LIBRARY in CLOAD['gen1_collection'] and sdata[0]['publishingName'].endswith('L'):
             sdata[0]['publishingName'] = sdata[0]['publishingName'].replace('L', '')
         publishing_name = sdata[0]['publishingName']
-        if ARG.LIBRARY in GEN1_COLLECTION:
+        if ARG.LIBRARY in CLOAD['gen1_collection']:
             # Strip genotype information from VT lines
             if 'VT' in publishing_name and not re.match('^VT[0-9]+$', publishing_name):
                 field = re.match('(VT\d+)', publishing_name)
                 publishing_name = field[1]
             publishing_name = publishing_name.replace('-', '_')
             if not (re.match('^R\d+[A-H]\d+$', publishing_name) \
-               or re.match('^VT\d+$', publishing_name) or (publishing_name in GEN1_NONSTD)):
+               or re.match('^VT\d+$', publishing_name) or (publishing_name in CLOAD['gen1_nonstd'])):
                 err_text = "Bad publishing name %s for %s" % (publishing_name, sdata[0]['line'])
                 LOGGER.error(err_text)
                 ERR.write(err_text + "\n")
@@ -504,7 +501,7 @@ def get_publishing_name(sdata, mapping):
     #pylint: disable=W0101
     if sdata[0]['line'] in mapping:
         publishing_name = mapping[sdata[0]['line']]
-    elif ARG.LIBRARY in GEN1_COLLECTION:
+    elif ARG.LIBRARY in CLOAD['gen1_collection']:
         lookup = degenerate_line(sdata[0]['line'])
         if mapping.get(lookup):
             publishing_name = mapping[lookup]
@@ -527,7 +524,7 @@ def convert_file(sourcepath, newname):
           New filepath
     '''
     LOGGER.debug("Converting %s to %s", sourcepath, newname)
-    newpath = TEMPORARY_DIR + newname
+    newpath = CLOAD['temp_dir']+ newname
     with Image.open(sourcepath) as image:
         image.save(newpath, 'PNG')
     return newpath
@@ -798,6 +795,8 @@ def upload_flyem_ancillary_files(smp, newname):
         return
     fbase = newname.split('.')[0]
     for ancillary in smp['variants']:
+        if ARG.SEARCHABLE and ancillary != 'searchable_neurons':
+            continue
         fname, ext = os.path.basename(smp['variants'][ancillary]).split('.')
         ancname = '.'.join([fbase, ext])
         ancname = '/'.join([ancillary, ancname])
@@ -830,18 +829,25 @@ def upload_flylight_ancillary_files(smp, newname):
         return
     fbase = newname.split('.')[0]
     for ancillary in smp['variants']:
+        if '.' not in smp['variants'][ancillary]:
+            LOGGER.error("%s file %s has no extension", ancillary, fname)
+            COUNT['Unparsable files'] += 1
+            continue
         fname, ext = os.path.basename(smp['variants'][ancillary]).split('.')
         try:
+            # MB002B-20121003_31_B2-f_20x_c1_01
             seqsearch = re.search('-CH\d+-(\d+)', fname)
             seq = seqsearch[1]
         except Exception as err:
-            LOGGER.error("Could not extract sequence number from %s", fname)
+            LOGGER.error("Could not extract sequence number from %s file %s", ancillary, fname)
             COUNT['Unparsable files'] += 1
             continue
         ancname = '.'.join(['-'.join([fbase, seq]), ext])
         ancname = '/'.join([ancillary, ancname])
         dirpath = os.path.dirname(smp['variants'][ancillary])
         fname = os.path.basename(smp['variants'][ancillary])
+        #print(fname)
+        #print(ancname)
         if ancillary == 'searchable_neurons':
             if SUBDIVISION['counter'] >= SUBDIVISION['limit']:
                 SUBDIVISION['prefix'] += 1
@@ -919,7 +925,7 @@ def upload_cdms_from_file():
             force = False
             if 'flyem_' in ARG.LIBRARY and not ARG.AWS:
                 force = True
-            url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname, force)
+            url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
             if url:
                 if url != 'Skipped':
                     turl = produce_thumbnail(dirpath, fname, newname, url)
@@ -1004,7 +1010,7 @@ def upload_cdms_from_api():
         LOGGER.warning("Denormalization files WILL NOT be loaded - run denormalize_s3.py to upload")
         return
     if KEY_LIST:
-        bucket_name, object_name = get_s3_names(AWS['s3_bucket']['cdm'], KEYFILE)
+        bucket_name, object_name = get_s3_names(AWS['s3_bucket']['cdm'], CLOAD['keyfile'])
         LOGGER.info("Uploading %s to the %s bucket", object_name, bucket_name)
         if ARG.WRITE:
             try:
@@ -1017,7 +1023,7 @@ def upload_cdms_from_api():
             except ClientError as err:
                 LOGGER.error(str(err))
             try:
-                object_name = COUNTFILE
+                object_name = CLOAD['count_file'] 
                 bucket.put_object(Body=json.dumps({"objectCount": total_objects}, indent=4),
                                   Key=object_name,
                                   ACL='public-read',
@@ -1036,12 +1042,14 @@ def update_library_config(update_method):
     '''
     if ARG.MANIFOLD not in LIBRARY[ARG.LIBRARY]:
         LIBRARY[ARG.LIBRARY][ARG.MANIFOLD] = dict()
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['samples'] = COUNT['Samples']
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['images'] = COUNT['Images']
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated'] = re.sub('\..*', '', str(datetime.now()))
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated_by'] = FULL_NAME
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['method'] = update_method
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['json_file'] = ARG.JSON if ARG.JSON else ''
+    if ARG.JSON not in LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]:
+        LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON] = dict()
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['samples'] = COUNT['Samples']
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['images'] = COUNT['Images']
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated'] = re.sub('\..*', '', str(datetime.now()))
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated'] = LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated']
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated_by'] = FULL_NAME
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['method'] = update_method
     if ARG.WRITE or ARG.CONFIG:
         resp = requests.post(CONFIG['config']['url'] + 'importjson/cdm_library/' + ARG.LIBRARY,
                              {"config": json.dumps(LIBRARY[ARG.LIBRARY])})
@@ -1056,6 +1064,8 @@ if __name__ == '__main__':
         description="Upload Color Depth MIPs to AWS S3")
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='color depth library')
+    PARSER.add_argument('--nb', dest='NB', action='store',
+                        default='v2.2', help='NeuronBridge version')
     PARSER.add_argument('--json', dest='JSON', action='store',
                         help='JSON file')
     PARSER.add_argument('--release', dest='RELEASE', action='store',
@@ -1064,6 +1074,8 @@ if __name__ == '__main__':
                         default=False, help='Upload to internal bucket')
     PARSER.add_argument('--gamma', dest='GAMMA', action='store',
                         default='gamma1_4', help='Variant key for gamma image to replace cdmPath')
+    PARSER.add_argument('--searchable', dest='SEARCHABLE', action='store_true',
+                        default=False, help='For variants, only upload searchable neurons')
     PARSER.add_argument('--rewrite', dest='REWRITE', action='store_true',
                         default=False,
                         help='Flag, Update image in AWS and on JACS')
@@ -1079,7 +1091,7 @@ if __name__ == '__main__':
                         default=False,
                         help='Flag, Check for previous AWS upload')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='', help='S3 manifold')
+                        default='dev', help='S3 manifold')
     PARSER.add_argument('--write', dest='WRITE', action='store_true',
                         default=False,
                         help='Flag, Actually write to JACS (and AWS if flag set)')
