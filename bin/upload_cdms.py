@@ -330,7 +330,7 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
 
 
 def get_line_mapping():
-    ''' Create a mapping of lines to publishing names, drivers, and releases
+    ''' Create a mapping of lines to drivers and releases
         Keyword arguments:
           None
         Returns:
@@ -555,15 +555,24 @@ def process_light(smp, driver, release, published_ids):
     else:
         PNAME[publishing_name] += 1
     REC['line'] = publishing_name
+    if publishing_name != smp['publishedName']:
+        log_error("JACS publishing name %s does not match %s" % (publishing_name, smp['publishedName']))
+        return False
     # Compare JSON record to JACS
-    for item in ['anatomicalArea', 'gender', 'objective', 'slideCode']:
-        if smp[item] != sdata[0][item]:
-            log_error("%s does not match for sample %s (%s, %s)" \
-                      % (item, sid, smp[item], sdata[0][item]))
-            return False
+    for item in ['gender', 'slideCode']:
+        try:
+            if smp[item] != sdata[0][item]:
+                log_error("%s does not match for sample %s (%s, %s)" \
+                          % (item, sid, smp[item], sdata[0][item]))
+                return False
+        except KeyError:
+            err_text = '%s is not in the %s record for sample %s' % (item,
+                                                                     ('JACS' if item in smp else 'JSON'), sid)
+            log_error(err_text)
+            sys.exit(-1)
     #REC['slide_code'] = translate_slide_code(sdata[0]['slideCode'], sdata[0]['line'])
-    REC['slide_code'] = sdata[0]['slideCode']
-    REC['gender'] = sdata[0]['gender']
+    REC['slide_code'] = smp['slideCode']
+    REC['gender'] = smp['gender']
     REC['objective'] = smp['objective']
     REC['area'] = smp['anatomicalArea'].lower()
     if ('_L' in sdata[0]['line'] and ARG.LIBRARY == 'flylight_gen1_gal4') \
