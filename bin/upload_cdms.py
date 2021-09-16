@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '1.0.4'
+__version__ = '1.1.0'
 
 import argparse
 from datetime import datetime
@@ -190,11 +190,10 @@ def get_parms():
         jsonlist.sort()
         terminal_menu = TerminalMenu(jsonlist)
         chosen = terminal_menu.show()
-        if chosen:
-            ARG.JSON = '/'.join([json_base, jsonlist[chosen]])
         if chosen is None:
             LOGGER.error("No JSON file selected")
             sys.exit(0)
+        ARG.JSON = '/'.join([json_base, jsonlist[chosen]])
     if not ARG.MANIFOLD:
         print("Select manifold to run on:")
         manifold = ['dev', 'prod']
@@ -330,37 +329,23 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
 
 
 def get_line_mapping():
-    ''' Create a mapping of lines to drivers and releases
+    ''' Create a mapping of publishing names to drivers. Note that "GAL4-Collection"
+        is remapped to "GAL4".
         Keyword arguments:
           None
         Returns:
           driver dictionary
-          release dictionary
     '''
     driver = dict()
-    release = dict()
-    # Populate driver dict
     LOGGER.info("Getting line/driver mapping")
     try:
-        CURSOR['sage'].execute("SELECT name,value FROM line_property_vw WHERE " \
-                               + "type='flycore_project'")
+        CURSOR['sage'].execute("SELECT DISTINCT publishing_name,driver FROM image_data_mv WHERE publishing_name IS NOT NULL AND driver IS NOT NULL")
         rows = CURSOR['sage'].fetchall()
     except MySQLdb.Error as err:
         sql_error(err)
     for row in rows:
-        driver[row['name']] = row['value'].replace("_Collection", "").replace("-", "_")
-    # Populate release dict
-    if ARG.LIBRARY == 'flylight_splitgal4_drivers':
-        LOGGER.info("Getting line/release mapping")
-        try:
-            CURSOR['sage'].execute("SELECT line,GROUP_CONCAT(DISTINCT alps_release) AS alps " \
-                                   + "FROM image_data_mv WHERE alps_release IS NOT NULL GROUP BY 1")
-            rows = CURSOR['sage'].fetchall()
-        except MySQLdb.Error as err:
-            sql_error(err)
-        for row in rows:
-            release[row['line']] = row['alps']
-    return driver, release
+        driver[row['publishing_name']] = row['driver'].replace("_Collection", "").replace("-", "_")
+    return driver
 
 
 def get_image_mapping():
@@ -382,43 +367,6 @@ def get_image_mapping():
     for row in rows:
         published_ids[row['workstation_sample_id']] = 1
     return published_ids
-
-
-def get_publishing_name(sdata):
-    ''' Return a publishing name for this sample
-        Keyword arguments:
-          sdata: sample record
-        Returns:
-          publishing name
-    '''
-    if len(sdata) > 1:
-        LOGGER.critical("More than one sample found")
-        sys.exit(-1)
-    if sdata[0]['line'] == 'No Consensus':
-        return sdata[0]['line']
-    if ARG.LIBRARY == 'flylight_gen1_gal4' and not re.search('01$', sdata[0]['line']):
-        print("BAD LANDING SITE %s" % (sdata[0]['line']))
-    if sdata[0]['line'] not in sdata[0]['name']:
-        LOGGER.critical("Line %s not present in name %s", sdata[0]['line'], sdata[0]['name'])
-        sys.exit(-1)
-    publishing_name = ''
-    if 'publishingName' in sdata[0] and sdata[0]['publishingName']:
-        if ARG.LIBRARY in CLOAD['gen1_collection'] and sdata[0]['publishingName'].endswith('L'):
-            sdata[0]['publishingName'] = sdata[0]['publishingName'].replace('L', '')
-        publishing_name = sdata[0]['publishingName']
-        if ARG.LIBRARY in CLOAD['gen1_collection']:
-            # Strip genotype information from VT lines
-            if 'VT' in publishing_name and not re.match('^VT[0-9]+$', publishing_name):
-                field = re.match('(VT\d+)', publishing_name)
-                publishing_name = field[1]
-            publishing_name = publishing_name.replace('-', '_')
-            if not (re.match('^R\d+[A-H]\d+$', publishing_name) \
-               or re.match('^VT\d+$', publishing_name) \
-               or (publishing_name in CLOAD['gen1_nonstd'])):
-                err_text = "Bad publishing name %s for %s" % (publishing_name, sdata[0]['line'])
-                LOGGER.error(err_text)
-                ERR.write(err_text + "\n")
-    return publishing_name
 
 
 def convert_file(sourcepath, newname):
@@ -461,28 +409,6 @@ def process_flyem(smp, convert=True):
     return newname
 
 
-def process_flylight_splitgal4_drivers(sdata, sid, release):
-    ''' Return the file name for a light microscopy sample.
-        Keyword arguments:
-          sdata: sample record
-          sid: sample ID
-          release: release mapping dictionary
-        Returns:
-          True/False for success
-    '''
-    if ARG.LIBRARY == 'flylight_splitgal4_drivers' and ARG.RELEASE:
-        if sdata[0]['line'] not in release:
-            COUNT['Not published'] += 1
-            err_text = "Sample %s (%s) was not published" % (sid, sdata[0]['line'])
-            LOGGER.error(err_text)
-            ERR.write(err_text + "\n")
-            return False
-        if ARG.RELEASE not in release[sdata[0]['line']]:
-            COUNT['Skipped'] += 1
-            return False
-    return True
-
-
 def translate_slide_code(isc, line0):
     ''' Translate a slide code to remove initials.
         Keyword arguments:
@@ -500,24 +426,23 @@ def translate_slide_code(isc, line0):
     return isc
 
 
-def process_light(smp, driver, release, published_ids):
+def process_light(smp, driver, published_ids):
     ''' Return the file name for a light microscopy sample.
         Keyword arguments:
           smp: sample record
           driver: driver mapping dictionary
-          release: release mapping dictionary
           published_ids: sample dictionary
         Returns:
           New file name
     '''
-    if 'sampleRef' not in smp:
+    if 'sampleRef' not in smp or not smp['sampleRef']:
         COUNT['No sampleRef'] += 1
         err_text = "No sampleRef for %s (%s)" % (smp['_id'], smp['name'])
         LOGGER.warning(err_text)
         ERR.write(err_text + "\n")
         return False
     sid = (smp['sampleRef'].split('#'))[-1]
-    LOGGER.info(sid)
+    LOGGER.debug(sid)
     if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
         if sid not in published_ids:
             COUNT['Not published'] += 1
@@ -525,68 +450,42 @@ def process_light(smp, driver, release, published_ids):
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
             return False
-    sdata = call_responder('jacs', 'data/sample?sampleId=' + sid)
-    # This is temporarily disabled
-    #if not process_flylight_splitgal4_drivers(sdata, sid, release):
-        #return False
-    if sdata[0]['line'] == 'No Consensus':
-        COUNT['No Consensus'] += 1
-        err_text = "No consensus line for sample %s (%s)" % (sid, sdata[0]['line'])
-        LOGGER.error(err_text)
-        ERR.write(err_text + "\n")
-        if ARG.WRITE:
-            return False
-    publishing_name = get_publishing_name(sdata)
-    if publishing_name == 'No Consensus':
-        COUNT['No Consensus'] += 1
-        err_text = "No consensus line for sample %s (%s)" % (sid, sdata[0]['line'])
-        LOGGER.error(err_text)
-        ERR.write(err_text + "\n")
-        if ARG.WRITE:
-            return False
-    if not publishing_name:
+    if 'publishedName' not in smp or not smp['publishedName']:
         COUNT['No publishing name'] += 1
-        err_text = "No publishing name for sample %s (%s)" % (sid, sdata[0]['line'])
+        err_text = "No publishing name for sample %s" % (sid)
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
         return False
+    publishing_name = smp['publishedName']
+    if publishing_name == 'No Consensus':
+        COUNT['No Consensus'] += 1
+        err_text = "No consensus line for sample %s (%s)" % (sid, publishing_name)
+        LOGGER.error(err_text)
+        ERR.write(err_text + "\n")
+        if ARG.WRITE:
+            return False
     if publishing_name not in PNAME:
         PNAME[publishing_name] = 1
     else:
         PNAME[publishing_name] += 1
     REC['line'] = publishing_name
-    if publishing_name != smp['publishedName']:
-        log_error("JACS publishing name %s does not match %s" % (publishing_name, smp['publishedName']))
-        return False
-    # Compare JSON record to JACS
-    for item in ['gender', 'slideCode']:
-        try:
-            if smp[item] != sdata[0][item]:
-                log_error("%s does not match for sample %s (%s, %s)" \
-                          % (item, sid, smp[item], sdata[0][item]))
-                return False
-        except KeyError:
-            err_text = '%s is not in the %s record for sample %s' % (item,
-                                                                     ('JACS' if item in smp else 'JSON'), sid)
-            log_error(err_text)
-            sys.exit(-1)
-    #REC['slide_code'] = translate_slide_code(sdata[0]['slideCode'], sdata[0]['line'])
     REC['slide_code'] = smp['slideCode']
     REC['gender'] = smp['gender']
     REC['objective'] = smp['objective']
     REC['area'] = smp['anatomicalArea'].lower()
-    if ('_L' in sdata[0]['line'] and ARG.LIBRARY == 'flylight_gen1_gal4') \
-       or ('_L' not in sdata[0]['line'] and ARG.LIBRARY == 'flylight_gen1_lexa'):
-        COUNT['Bad driver'] += 1
-        err_text = "Bad driver for sample %s (%s)" % (sid, sdata[0]['line'])
-        LOGGER.error(err_text)
-        ERR.write(err_text + "\n")
-        return False
-    if sdata[0]['line'] in driver:
-        drv = driver[sdata[0]['line']]
+    if publishing_name in driver:
+         drv = driver[publishing_name]
+         if drv not in CLOAD['drivers']:
+            COUNT['Bad driver'] += 1
+            err_text = "Bad driver for sample %s (%s)" % (sid, publishing_name)
+            LOGGER.error(err_text)
+            ERR.write(err_text + "\n")
+            if ARG.WRITE:
+                sys.exit(-1)
+            return False
     else:
         COUNT['No driver'] += 1
-        err_text = "No driver for sample %s (%s)" % (sid, sdata[0]['line'])
+        err_text = "No driver for sample %s (%s)" % (sid, publishing_name)
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
         if ARG.WRITE:
@@ -774,8 +673,9 @@ def upload_cdms_from_file():
         Returns:
           None
     '''
-    driver, release = get_line_mapping()
-    published_ids = get_image_mapping()
+    if 'flyem_' not in ARG.LIBRARY:
+        driver = get_line_mapping()
+        published_ids = get_image_mapping()
     jfile = open(ARG.JSON, 'r')
     data = json.load(jfile)
     jfile.close()
@@ -815,7 +715,7 @@ def upload_cdms_from_file():
                 smp['cdmPath'] = smp['variants'][ARG.GAMMA]
                 del smp['variants'][ARG.GAMMA]
             set_name_and_filepath(smp)
-            newname = process_light(smp, driver, release, published_ids)
+            newname = process_light(smp, driver, published_ids)
             if not newname:
                 err_text = "No publishing name for FlyLight %s" % smp['name']
                 LOGGER.error(err_text)
@@ -894,8 +794,6 @@ if __name__ == '__main__':
                         default='v2.2', help='NeuronBridge version')
     PARSER.add_argument('--json', dest='JSON', action='store',
                         help='JSON file')
-    PARSER.add_argument('--release', dest='RELEASE', action='store',
-                        help='ALPS release')
     PARSER.add_argument('--internal', dest='INTERNAL', action='store_true',
                         default=False, help='Upload to internal bucket')
     PARSER.add_argument('--gamma', dest='GAMMA', action='store',
