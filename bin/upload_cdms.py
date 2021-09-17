@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '1.1.0'
+__version__ = '1.1.1'
 
 import argparse
 from datetime import datetime
@@ -221,9 +221,6 @@ def initialize_program():
     TAGS = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
            + 'VERSION=' + __version__
     data = call_responder('config', 'config/db_config')
-    manifold = 'prod'
-    if ARG.LIBRARY == 'flylight_splitgal4_drivers':
-        manifold = 'staging'
     (CONN['sage'], CURSOR['sage']) = db_connect(data['config']['sage']['prod'])
     if ARG.LIBRARY not in LIBRARY:
         LOGGER.critical("Unknown library %s", ARG.LIBRARY)
@@ -339,7 +336,8 @@ def get_line_mapping():
     driver = dict()
     LOGGER.info("Getting line/driver mapping")
     try:
-        CURSOR['sage'].execute("SELECT DISTINCT publishing_name,driver FROM image_data_mv WHERE publishing_name IS NOT NULL AND driver IS NOT NULL")
+        CURSOR['sage'].execute("SELECT DISTINCT publishing_name,driver FROM image_data_mv " \
+                               + "WHERE publishing_name IS NOT NULL AND driver IS NOT NULL")
         rows = CURSOR['sage'].fetchall()
     except MySQLdb.Error as err:
         sql_error(err)
@@ -426,21 +424,20 @@ def translate_slide_code(isc, line0):
     return isc
 
 
-def process_light(smp, driver, published_ids):
-    ''' Return the file name for a light microscopy sample.
+def get_smp_info(smp, published_ids):
+    ''' Return the sample ID and publishing name
         Keyword arguments:
           smp: sample record
-          driver: driver mapping dictionary
           published_ids: sample dictionary
         Returns:
-          New file name
+          Sample ID and publishing name, or None if error
     '''
     if 'sampleRef' not in smp or not smp['sampleRef']:
         COUNT['No sampleRef'] += 1
         err_text = "No sampleRef for %s (%s)" % (smp['_id'], smp['name'])
         LOGGER.warning(err_text)
         ERR.write(err_text + "\n")
-        return False
+        return None, None
     sid = (smp['sampleRef'].split('#'))[-1]
     LOGGER.debug(sid)
     if ARG.LIBRARY in ['flylight_splitgal4_drivers']:
@@ -449,13 +446,13 @@ def process_light(smp, driver, published_ids):
             err_text = "Sample %s was not published" % (sid)
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
-            return False
+            return None, None
     if 'publishedName' not in smp or not smp['publishedName']:
         COUNT['No publishing name'] += 1
         err_text = "No publishing name for sample %s" % (sid)
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
-        return False
+        return None, None
     publishing_name = smp['publishedName']
     if publishing_name == 'No Consensus':
         COUNT['No Consensus'] += 1
@@ -468,14 +465,29 @@ def process_light(smp, driver, published_ids):
         PNAME[publishing_name] = 1
     else:
         PNAME[publishing_name] += 1
+    return sid, publishing_name
+
+
+def process_light(smp, driver, published_ids):
+    ''' Return the file name for a light microscopy sample.
+        Keyword arguments:
+          smp: sample record
+          driver: driver mapping dictionary
+          published_ids: sample dictionary
+        Returns:
+          New file name
+    '''
+    sid, publishing_name = get_smp_info(smp, published_ids)
+    if not sid:
+        return False
     REC['line'] = publishing_name
     REC['slide_code'] = smp['slideCode']
     REC['gender'] = smp['gender']
     REC['objective'] = smp['objective']
     REC['area'] = smp['anatomicalArea'].lower()
     if publishing_name in driver:
-         drv = driver[publishing_name]
-         if drv not in CLOAD['drivers']:
+        drv = driver[publishing_name]
+        if drv not in CLOAD['drivers']:
             COUNT['Bad driver'] += 1
             err_text = "Bad driver for sample %s (%s)" % (sid, publishing_name)
             LOGGER.error(err_text)
@@ -637,14 +649,13 @@ def upload_flylight_ancillary_files(smp, newname):
             COUNT['Unparsable files'] += 1
             continue
         fname, ext = os.path.basename(smp['variants'][ancillary]).split('.')
-        try:
-            # MB002B-20121003_31_B2-f_20x_c1_01
-            seqsearch = re.search('-CH\d+-(\d+)', fname)
-            seq = seqsearch[1]
-        except Exception as _:
+        # MB002B-20121003_31_B2-f_20x_c1_01
+        seqsearch = re.search(r"-CH\d+-(\d+)", fname)
+        if seqsearch is None:
             LOGGER.error("Could not extract sequence number from %s file %s", ancillary, fname)
             COUNT['Unparsable files'] += 1
             continue
+        seq = seqsearch[1]
         ancname = '.'.join(['-'.join([fbase, seq]), ext])
         ancname = '/'.join([ancillary, ancname])
         dirpath = os.path.dirname(smp['variants'][ancillary])
@@ -663,6 +674,113 @@ def upload_flylight_ancillary_files(smp, newname):
             ANCILLARY_UPLOADS[ancillary] = 1
         else:
             ANCILLARY_UPLOADS[ancillary] += 1
+
+
+def check_image(smp):
+    ''' Check that the image exists and see if the URL is already specified
+        Keyword arguments:
+          smp: sample record
+        Returns:
+          False if error, True otherwise
+    '''
+    if 'imageName' not in smp:
+        LOGGER.critical("Missing imageName in sample")
+        print(smp)
+        sys.exit(-1)
+    LOGGER.debug('----- %s', smp['imageName'])
+    if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
+        COUNT['Already on JACS'] += 1
+        return False
+    return True
+
+
+def upload_primary(smp, newname):
+    ''' Handle uploading of the primary image
+        Keyword arguments:
+          smp: sample record
+          newname: new file name
+        Returns:
+          None
+    '''
+    dirpath = os.path.dirname(smp['filepath'])
+    fname = os.path.basename(smp['filepath'])
+    url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+    if url:
+        if url != 'Skipped':
+            turl = produce_thumbnail(dirpath, fname, newname, url)
+            if ARG.WRITE:
+                if ARG.AWS and ('flyem_' in ARG.LIBRARY):
+                    os.remove(smp['filepath'])
+                update_jacs(smp['_id'], url, turl)
+            else:
+                LOGGER.info("Primary %s", url)
+    elif ARG.WRITE:
+        LOGGER.error("Did not transfer primary image %s", fname)
+
+
+def handle_primary(smp, driver, published_ids):
+    ''' Handle the primary image
+        Keyword arguments:
+          smp: sample record
+          driver: driver mapping dictionary
+          published_ids: sample dictionary
+        Returns:
+          None
+    '''
+    skip_primary = False
+    if 'flyem_' in ARG.LIBRARY:
+        if '_FL' in smp['imageName']:
+            COUNT['FlyEM flips'] += 1
+            skip_primary = True
+        else:
+            set_name_and_filepath(smp)
+            newname = process_flyem(smp)
+            if not newname:
+                err_text = "No publishing name for FlyEM %s" % smp['name']
+                LOGGER.error(err_text)
+                ERR.write(err_text + "\n")
+                COUNT['No publishing name'] += 1
+                return
+    else:
+        if 'variants' in smp and ARG.GAMMA in smp['variants']:
+            smp['cdmPath'] = smp['variants'][ARG.GAMMA]
+            del smp['variants'][ARG.GAMMA]
+        set_name_and_filepath(smp)
+        newname = process_light(smp, driver, published_ids)
+        if not newname:
+            err_text = "No publishing name for FlyLight %s" % smp['name']
+            LOGGER.error(err_text)
+            ERR.write(err_text + "\n")
+            return
+        if 'imageArchivePath' in smp and 'imageName' in smp:
+            smp['searchableNeuronsName'] = '/'.join([smp['imageArchivePath'], smp['imageName']])
+    if not skip_primary:
+        upload_primary(smp, newname)
+
+
+def handle_variants(smp):
+    ''' Handle uploading of the variants
+        Keyword arguments:
+          smp: sample record
+        Returns:
+          None
+    '''
+    if 'flyem_' in ARG.LIBRARY:
+        if '_FL' in smp['imageName']:
+            set_name_and_filepath(smp)
+        newname = process_flyem(smp, False)
+        if not newname:
+            return
+        if newname.count('.') > 1:
+            LOGGER.critical("Internal error for newname computation")
+            sys.exit(-1)
+        upload_flyem_ancillary_files(smp, newname)
+        #newname = 'searchable_neurons/' + newname
+        #dirpath = os.path.dirname(smp['filepath'])
+        #fname = os.path.basename(smp['filepath'])
+        #url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
+    else:
+        upload_flylight_ancillary_files(smp, newname)
 
 
 def upload_cdms_from_file():
@@ -686,75 +804,13 @@ def upload_cdms_from_file():
         if ARG.SAMPLES and COUNT['Samples'] >= ARG.SAMPLES:
             break
         COUNT['Samples'] += 1
-        if 'imageName' not in smp:
-            LOGGER.critical("Missing imageName in sample")
-            print(smp)
-            sys.exit(-1)
-        LOGGER.info('----- %s', smp['imageName'])
-        if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
-            COUNT['Already on JACS'] += 1
+        if not check_image(smp):
             continue
         REC['alignment_space'] = smp['alignmentSpace']
         # Primary image
-        skip_primary = False
-        if 'flyem_' in ARG.LIBRARY:
-            if '_FL' in smp['imageName']:
-                COUNT['FlyEM flips'] += 1
-                skip_primary = True
-            else:
-                set_name_and_filepath(smp)
-                newname = process_flyem(smp)
-                if not newname:
-                    err_text = "No publishing name for FlyEM %s" % smp['name']
-                    LOGGER.error(err_text)
-                    ERR.write(err_text + "\n")
-                    COUNT['No publishing name'] += 1
-                    continue
-        else:
-            if 'variants' in smp and ARG.GAMMA in smp['variants']:
-                smp['cdmPath'] = smp['variants'][ARG.GAMMA]
-                del smp['variants'][ARG.GAMMA]
-            set_name_and_filepath(smp)
-            newname = process_light(smp, driver, published_ids)
-            if not newname:
-                err_text = "No publishing name for FlyLight %s" % smp['name']
-                LOGGER.error(err_text)
-                ERR.write(err_text + "\n")
-                continue
-            if 'imageArchivePath' in smp and 'imageName' in smp:
-                smp['searchableNeuronsName'] = '/'.join([smp['imageArchivePath'], smp['imageName']])
-        if not skip_primary:
-            dirpath = os.path.dirname(smp['filepath'])
-            fname = os.path.basename(smp['filepath'])
-            url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
-            if url:
-                if url != 'Skipped':
-                    turl = produce_thumbnail(dirpath, fname, newname, url)
-                    if ARG.WRITE:
-                        if ARG.AWS and ('flyem_' in ARG.LIBRARY):
-                            os.remove(smp['filepath'])
-                        update_jacs(smp['_id'], url, turl)
-                    else:
-                        LOGGER.info("Primary %s", url)
-            elif ARG.WRITE:
-                LOGGER.error("Did not transfer primary image %s", fname)
-        # Ancillary images
-        if 'flyem_' in ARG.LIBRARY:
-            if '_FL' in smp['imageName']:
-                set_name_and_filepath(smp)
-            newname = process_flyem(smp, False)
-            if not newname:
-                continue
-            if newname.count('.') > 1:
-                LOGGER.critical("Internal error for newname computation")
-                sys.exit(-1)
-            upload_flyem_ancillary_files(smp, newname)
-            #newname = 'searchable_neurons/' + newname
-            #dirpath = os.path.dirname(smp['filepath'])
-            #fname = os.path.basename(smp['filepath'])
-            #url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
-        else:
-            upload_flylight_ancillary_files(smp, newname)
+        handle_primary(smp, driver, published_ids)
+        # Variants
+        handle_variants(smp)
 
 
 def update_library_config():
@@ -770,7 +826,7 @@ def update_library_config():
         LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON] = dict()
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['samples'] = COUNT['Samples']
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['images'] = COUNT['Images']
-    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated'] = re.sub('\..*', '',
+    LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated'] = re.sub(r"\..*", '',
                                                                      str(datetime.now()))
     LIBRARY[ARG.LIBRARY][ARG.MANIFOLD]['updated'] = \
         LIBRARY[ARG.LIBRARY][ARG.MANIFOLD][ARG.JSON]['updated']
@@ -791,7 +847,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='color depth library')
     PARSER.add_argument('--nb', dest='NB', action='store',
-                        default='v2.2', help='NeuronBridge version')
+                        default='v2.2.0', help='NeuronBridge version')
     PARSER.add_argument('--json', dest='JSON', action='store',
                         help='JSON file')
     PARSER.add_argument('--internal', dest='INTERNAL', action='store_true',
