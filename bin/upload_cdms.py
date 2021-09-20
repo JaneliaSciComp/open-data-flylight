@@ -27,6 +27,7 @@ CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = dict()
 CLOAD = dict()
 LIBRARY = dict()
+UPLOAD_VARIANTS = True
 # Database
 CONN = dict()
 CURSOR = dict()
@@ -48,6 +49,18 @@ S3_SECONDS = 60 * 60 * 12
 ANCILLARY_UPLOADS = dict()
 UPLOADED_NAME = dict()
 KEY_LIST = list()
+
+
+def terminate_program(code):
+    if S3CP:
+        ERR.close()
+        S3CP.close()
+        if not os.path.getsize(S3CP_FILE):
+            os.remove(S3CP_FILE)
+        for fpath in [ERR_FILE, S3CP_FILE]:
+            if not os.path.getsize(fpath):
+                os.remove(fpath)
+    sys.exit(code)
 
 
 def call_responder(server, endpoint, payload='', authenticate=False):
@@ -80,11 +93,11 @@ def call_responder(server, endpoint, payload='', authenticate=False):
                 req = requests.get(url)
     except requests.exceptions.RequestException as err:
         LOGGER.critical(err)
-        sys.exit(-1)
+        terminate_program(-1)
     if req.status_code == 200:
         return req.json()
     print("Could not get response from %s: %s" % (url, req.text))
-    sys.exit(-1)
+    terminate_program(-1)
 
 
 def sql_error(err):
@@ -93,7 +106,7 @@ def sql_error(err):
         LOGGER.critical('MySQL error [%d]: %s', err.args[0], err.args[1])
     except IndexError:
         LOGGER.critical('MySQL error: %s', err)
-    sys.exit(-1)
+    terminate_program(-1)
 
 
 def db_connect(dbd):
@@ -125,10 +138,10 @@ def decode_token(token):
         response = jwt.decode(token, verify=False)
     except jwt.exceptions.DecodeError:
         LOGGER.critical("Token failed validation")
-        sys.exit(-1)
+        terminate_program(-1)
     except jwt.exceptions.InvalidTokenError:
         LOGGER.critical("Could not decode token")
-        sys.exit(-1)
+        terminate_program(-1)
     return response
 
 
@@ -180,11 +193,11 @@ def get_parms():
         chosen = terminal_menu.show()
         if chosen is None:
             LOGGER.error("No library selected")
-            sys.exit(0)
+            terminate_program(0)
         ARG.LIBRARY = liblist[chosen].replace(' ', '_')
     if not ARG.JSON:
         print("Select a JSON file:")
-        json_base = CLOAD['json_dir'] + "/%s/" % (ARG.NB)
+        json_base = CLOAD['json_dir'] + "/%s/" % (ARG.NEURONBRIDGE)
         jsonlist = list(map(lambda jfile: jfile.split('/')[-1],
                             glob.glob(json_base + "/*.json")))
         jsonlist.sort()
@@ -192,7 +205,7 @@ def get_parms():
         chosen = terminal_menu.show()
         if chosen is None:
             LOGGER.error("No JSON file selected")
-            sys.exit(0)
+            terminate_program(0)
         ARG.JSON = '/'.join([json_base, jsonlist[chosen]])
     if not ARG.MANIFOLD:
         print("Select manifold to run on:")
@@ -201,7 +214,7 @@ def get_parms():
         chosen = terminal_menu.show()
         if chosen is None:
             LOGGER.error("No manifold selected")
-            sys.exit(0)
+            terminate_program(0)
         ARG.MANIFOLD = manifold[chosen]
 
 
@@ -224,14 +237,14 @@ def initialize_program():
     (CONN['sage'], CURSOR['sage']) = db_connect(data['config']['sage']['prod'])
     if ARG.LIBRARY not in LIBRARY:
         LOGGER.critical("Unknown library %s", ARG.LIBRARY)
-        sys.exit(-1)
+        terminate_program(-1)
     if 'JACS_JWT' not in os.environ:
         LOGGER.critical("Missing token - set in JACS_JWT environment variable")
-        sys.exit(-1)
+        terminate_program(-1)
     response = decode_token(os.environ['JACS_JWT'])
     if int(time()) >= response['exp']:
         LOGGER.critical("Your token is expired")
-        sys.exit(-1)
+        terminate_program(-1)
     FULL_NAME = response['full_name']
     LOGGER.info("Authenticated as %s", FULL_NAME)
     initialize_s3()
@@ -296,7 +309,8 @@ def upload_aws(bucket, dirpath, fname, newname, force=False):
     UPLOADED_NAME[object_name] = complete_fpath
     url = '/'.join([AWS['base_aws_url'], bucket, object_name])
     url = url.replace(' ', '+')
-    KEY_LIST.append(object_name)
+    if "/searchable_neurons/" in object_name:
+        KEY_LIST.append(object_name)
     S3CP.write("%s\t%s\n" % (complete_fpath, '/'.join([bucket, object_name])))
     LOGGER.info("Upload %s", object_name)
     COUNT['Images'] += 1
@@ -493,7 +507,7 @@ def process_light(smp, driver, published_ids):
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
             if ARG.WRITE:
-                sys.exit(-1)
+                terminate_program(-1)
             return False
     else:
         COUNT['No driver'] += 1
@@ -501,7 +515,7 @@ def process_light(smp, driver, published_ids):
         LOGGER.error(err_text)
         ERR.write(err_text + "\n")
         if ARG.WRITE:
-            sys.exit(-1)
+            terminate_program(-1)
         return False
     fname = os.path.basename(smp['filepath'])
     if 'gamma' in fname:
@@ -511,7 +525,7 @@ def process_light(smp, driver, published_ids):
     chan = chan.split('_')[0].replace('CH', '')
     if chan not in ['1', '2', '3', '4']:
         LOGGER.critical("Could not find channel for %s (%s)", fname, chan)
-        sys.exit(-1)
+        terminate_program(-1)
     newname = '%s-%s-%s-%s-%s-%s-%s-CDM_%s.png' \
         % (REC['line'], REC['slide_code'], drv, REC['gender'],
            REC['objective'], REC['area'], REC['alignment_space'], chan)
@@ -686,7 +700,7 @@ def check_image(smp):
     if 'imageName' not in smp:
         LOGGER.critical("Missing imageName in sample")
         print(smp)
-        sys.exit(-1)
+        terminate_program(-1)
     LOGGER.debug('----- %s', smp['imageName'])
     if 'publicImageUrl' in smp and smp['publicImageUrl'] and not ARG.REWRITE:
         COUNT['Already on JACS'] += 1
@@ -725,9 +739,10 @@ def handle_primary(smp, driver, published_ids):
           driver: driver mapping dictionary
           published_ids: sample dictionary
         Returns:
-          None
+          New file name
     '''
     skip_primary = False
+    newname = None
     if 'flyem_' in ARG.LIBRARY:
         if '_FL' in smp['imageName']:
             COUNT['FlyEM flips'] += 1
@@ -740,7 +755,7 @@ def handle_primary(smp, driver, published_ids):
                 LOGGER.error(err_text)
                 ERR.write(err_text + "\n")
                 COUNT['No publishing name'] += 1
-                return
+                return None
     else:
         if 'variants' in smp and ARG.GAMMA in smp['variants']:
             smp['cdmPath'] = smp['variants'][ARG.GAMMA]
@@ -751,17 +766,19 @@ def handle_primary(smp, driver, published_ids):
             err_text = "No publishing name for FlyLight %s" % smp['name']
             LOGGER.error(err_text)
             ERR.write(err_text + "\n")
-            return
+            return None
         if 'imageArchivePath' in smp and 'imageName' in smp:
             smp['searchableNeuronsName'] = '/'.join([smp['imageArchivePath'], smp['imageName']])
     if not skip_primary:
         upload_primary(smp, newname)
+    return newname
 
 
-def handle_variants(smp):
+def handle_variants(smp, newname):
     ''' Handle uploading of the variants
         Keyword arguments:
           smp: sample record
+          newname: new file name
         Returns:
           None
     '''
@@ -773,14 +790,15 @@ def handle_variants(smp):
             return
         if newname.count('.') > 1:
             LOGGER.critical("Internal error for newname computation")
-            sys.exit(-1)
-        upload_flyem_ancillary_files(smp, newname)
+            terminate_program(-1)
+        if UPLOAD_VARIANTS:
+            upload_flyem_ancillary_files(smp, newname)
         #newname = 'searchable_neurons/' + newname
         #dirpath = os.path.dirname(smp['filepath'])
         #fname = os.path.basename(smp['filepath'])
         #url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
-    else:
-        upload_flylight_ancillary_files(smp, newname)
+    elif UPLOAD_VARIANTS:
+            upload_flylight_ancillary_files(smp, newname)
 
 
 def upload_cdms_from_file():
@@ -794,6 +812,9 @@ def upload_cdms_from_file():
     if 'flyem_' not in ARG.LIBRARY:
         driver = get_line_mapping()
         published_ids = get_image_mapping()
+    else:
+        driver = {}
+        published_ids = {}
     jfile = open(ARG.JSON, 'r')
     data = json.load(jfile)
     jfile.close()
@@ -808,9 +829,10 @@ def upload_cdms_from_file():
             continue
         REC['alignment_space'] = smp['alignmentSpace']
         # Primary image
-        handle_primary(smp, driver, published_ids)
+        newname = handle_primary(smp, driver, published_ids)
         # Variants
-        handle_variants(smp)
+        if newname:
+            handle_variants(smp, newname)
 
 
 def update_library_config():
@@ -846,7 +868,7 @@ if __name__ == '__main__':
         description="Upload Color Depth MIPs to AWS S3")
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='color depth library')
-    PARSER.add_argument('--nb', dest='NB', action='store',
+    PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
                         default='v2.2.0', help='NeuronBridge version')
     PARSER.add_argument('--json', dest='JSON', action='store',
                         help='JSON file')
@@ -892,30 +914,29 @@ if __name__ == '__main__':
     HANDLER.setFormatter(colorlog.ColoredFormatter())
     LOGGER.addHandler(HANDLER)
 
-    STAMP = strftime("%Y%m%dT%H%M%S")
-    ERR_FILE = 'upload_cdms_errors_%s.txt' % STAMP
-    ERR = open(ERR_FILE, 'w')
-    S3CP_FILE = 'upload_cdms_s3cp_%s.txt' % STAMP
-    S3CP = open(S3CP_FILE, 'w')
-
     initialize_program()
+    STAMP = strftime("%Y%m%dT%H%M%S")
+    ERR_FILE = '%s_errors_%s.txt' % (ARG.LIBRARY, STAMP)
+    ERR = open(ERR_FILE, 'w')
+    S3CP_FILE = '%s_s3cp_%s.txt' % (ARG.LIBRARY, STAMP)
+    S3CP = open(S3CP_FILE, 'w')
     START_TIME = datetime.now()
     print("Processing %s on %s manifold" % (ARG.LIBRARY, ARG.MANIFOLD))
     upload_cdms_from_file()
     STOP_TIME = datetime.now()
     print("Elapsed time: %s" %  (STOP_TIME - START_TIME))
-    ERR.close()
-    S3CP.close()
     update_library_config()
+    if len(KEY_LIST):
+        KEY_FILE = '%s_keys_%s.txt' % (ARG.LIBRARY, STAMP)
+        KEY = open(KEY_FILE, 'w')
+        KEY.write("%s\n" % json.dumps(KEY_LIST))
+        KEY.close()
     for key in sorted(COUNT):
         print("%-20s %d" % (key + ':', COUNT[key]))
     if ANCILLARY_UPLOADS:
         print('Uploaded variants:')
         for key in sorted(ANCILLARY_UPLOADS):
             print("  %-20s %d" % (key + ':', ANCILLARY_UPLOADS[key]))
-    for fpath in [ERR_FILE]:
-        if not os.path.getsize(fpath):
-            os.remove(fpath)
     print("Server calls (excluding AWS)")
     print(TRANSACTIONS)
-    sys.exit(0)
+    terminate_program(0)
