@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '1.2.0'
+__version__ = '1.3.0'
 
 import argparse
 from datetime import datetime
@@ -14,6 +14,7 @@ from time import strftime, time
 import boto3
 from botocore.exceptions import ClientError
 import colorlog
+import inquirer
 import jwt
 import requests
 from simple_term_menu import TerminalMenu
@@ -27,7 +28,8 @@ CONFIG = {'config': {'url': 'http://config.int.janelia.org/'}}
 AWS = dict()
 CLOAD = dict()
 LIBRARY = dict()
-UPLOAD_VARIANTS = True
+VARIANTS = ["gradient", "searchable_neurons", "zgap"]
+WILL_LOAD = list()
 # Database
 CONN = dict()
 CURSOR = dict()
@@ -46,7 +48,7 @@ FULL_NAME = TAGS = ''
 MAX_SIZE = 500
 CREATE_THUMBNAIL = False
 S3_SECONDS = 60 * 60 * 12
-ANCILLARY_UPLOADS = dict()
+VARIANT_UPLOADS = dict()
 UPLOADED_NAME = dict()
 KEY_LIST = list()
 
@@ -225,6 +227,20 @@ def get_parms():
         ARG.MANIFOLD = manifold[chosen]
 
 
+def select_uploads():
+    """ Query the user for which image types to upload
+        Keyword arguments:
+            None
+        Returns:
+            None
+    """
+    global WILL_LOAD # pylint: disable=W0603
+    quest = [inquirer.Checkbox('checklist',
+                               message='Select imate types to upload',
+                               choices=VARIANTS, default=VARIANTS)]
+    WILL_LOAD = inquirer.prompt(quest)['checklist']
+
+
 def initialize_program():
     """ Initialize
     """
@@ -238,6 +254,7 @@ def initialize_program():
     data = call_responder('config', 'config/cdm_library')
     LIBRARY = data['config']
     get_parms()
+    select_uploads()
     TAGS = 'PROJECT=CDCS&STAGE=' + ARG.MANIFOLD + '&DEVELOPER=svirskasr&' \
            + 'VERSION=' + __version__
     data = call_responder('config', 'config/db_config')
@@ -618,7 +635,7 @@ def set_name_and_filepath(smp):
     smp['name'] = os.path.basename(smp['filepath'])
 
 
-def upload_flyem_ancillary_files(smp, newname):
+def upload_flyem_variants(smp, newname):
     ''' Upload variant files for FlyEM
         Keyword arguments:
           smp: sample record
@@ -630,15 +647,18 @@ def upload_flyem_ancillary_files(smp, newname):
         LOGGER.warning("No variants for %s", smp['name'])
         return
     fbase = newname.split('.')[0]
-    for ancillary in smp['variants']:
-        if ARG.SEARCHABLE and ancillary != 'searchable_neurons':
+    for variant in smp['variants']:
+        if variant not in VARIANTS:
+            LOGGER.error("Unknown variant %s", variant)
+            terminate_program(-1)
+        if variant not in WILL_LOAD:
             continue
-        fname, ext = os.path.basename(smp['variants'][ancillary]).split('.')
+        fname, ext = os.path.basename(smp['variants'][variant]).split('.')
         ancname = '.'.join([fbase, ext])
-        ancname = '/'.join([ancillary, ancname])
-        dirpath = os.path.dirname(smp['variants'][ancillary])
-        fname = os.path.basename(smp['variants'][ancillary])
-        if ancillary == 'searchable_neurons':
+        ancname = '/'.join([variant, ancname])
+        dirpath = os.path.dirname(smp['variants'][variant])
+        fname = os.path.basename(smp['variants'][variant])
+        if variant == 'searchable_neurons':
             if SUBDIVISION['counter'] >= SUBDIVISION['limit']:
                 SUBDIVISION['prefix'] += 1
                 SUBDIVISION['counter'] = 0
@@ -646,13 +666,13 @@ def upload_flyem_ancillary_files(smp, newname):
                                       'searchable_neurons/%s/' % str(SUBDIVISION['prefix']))
             SUBDIVISION['counter'] += 1
         _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
-        if ancillary not in ANCILLARY_UPLOADS:
-            ANCILLARY_UPLOADS[ancillary] = 1
+        if variant not in VARIANT_UPLOADS:
+            VARIANT_UPLOADS[variant] = 1
         else:
-            ANCILLARY_UPLOADS[ancillary] += 1
+            VARIANT_UPLOADS[variant] += 1
 
 
-def upload_flylight_ancillary_files(smp, newname):
+def upload_flylight_variants(smp, newname):
     ''' Upload variant files for FlyLight
         Keyword arguments:
           smp: sample record
@@ -664,26 +684,31 @@ def upload_flylight_ancillary_files(smp, newname):
         LOGGER.warning("No variants for %s", smp['name'])
         return
     fbase = newname.split('.')[0]
-    for ancillary in smp['variants']:
-        if '.' not in smp['variants'][ancillary]:
-            LOGGER.error("%s file %s has no extension", ancillary, fname)
+    for variant in smp['variants']:
+        if variant not in VARIANTS:
+            LOGGER.error("Unknown variant %s", variant)
+            terminate_program(-1)
+        if variant not in WILL_LOAD:
+            continue
+        if '.' not in smp['variants'][variant]:
+            LOGGER.error("%s file %s has no extension", variant, fname)
             COUNT['Unparsable files'] += 1
             continue
-        fname, ext = os.path.basename(smp['variants'][ancillary]).split('.')
+        fname, ext = os.path.basename(smp['variants'][variant]).split('.')
         # MB002B-20121003_31_B2-f_20x_c1_01
         seqsearch = re.search(r"-CH\d+-(\d+)", fname)
         if seqsearch is None:
-            LOGGER.error("Could not extract sequence number from %s file %s", ancillary, fname)
+            LOGGER.error("Could not extract sequence number from %s file %s", variant, fname)
             COUNT['Unparsable files'] += 1
             continue
         seq = seqsearch[1]
         ancname = '.'.join(['-'.join([fbase, seq]), ext])
-        ancname = '/'.join([ancillary, ancname])
-        dirpath = os.path.dirname(smp['variants'][ancillary])
-        fname = os.path.basename(smp['variants'][ancillary])
+        ancname = '/'.join([variant, ancname])
+        dirpath = os.path.dirname(smp['variants'][variant])
+        fname = os.path.basename(smp['variants'][variant])
         #print(fname)
         #print(ancname)
-        if ancillary == 'searchable_neurons':
+        if variant == 'searchable_neurons':
             if SUBDIVISION['counter'] >= SUBDIVISION['limit']:
                 SUBDIVISION['prefix'] += 1
                 SUBDIVISION['counter'] = 0
@@ -691,10 +716,10 @@ def upload_flylight_ancillary_files(smp, newname):
                                       'searchable_neurons/%s/' % str(SUBDIVISION['prefix']))
             SUBDIVISION['counter'] += 1
         _ = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, ancname)
-        if ancillary not in ANCILLARY_UPLOADS:
-            ANCILLARY_UPLOADS[ancillary] = 1
+        if variant not in VARIANT_UPLOADS:
+            VARIANT_UPLOADS[variant] = 1
         else:
-            ANCILLARY_UPLOADS[ancillary] += 1
+            VARIANT_UPLOADS[variant] += 1
 
 
 def check_image(smp):
@@ -798,14 +823,13 @@ def handle_variants(smp, newname):
         if newname.count('.') > 1:
             LOGGER.critical("Internal error for newname computation")
             terminate_program(-1)
-        if UPLOAD_VARIANTS:
-            upload_flyem_ancillary_files(smp, newname)
+        upload_flyem_variants(smp, newname)
         #newname = 'searchable_neurons/' + newname
         #dirpath = os.path.dirname(smp['filepath'])
         #fname = os.path.basename(smp['filepath'])
         #url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
-    elif UPLOAD_VARIANTS:
-        upload_flylight_ancillary_files(smp, newname)
+    else:
+        upload_flylight_variants(smp, newname)
 
 
 def upload_cdms_from_file():
@@ -883,8 +907,6 @@ if __name__ == '__main__':
                         default=False, help='Upload to internal bucket')
     PARSER.add_argument('--gamma', dest='GAMMA', action='store',
                         default='gamma1_4', help='Variant key for gamma image to replace cdmPath')
-    PARSER.add_argument('--searchable', dest='SEARCHABLE', action='store_true',
-                        default=False, help='For variants, only upload searchable neurons')
     PARSER.add_argument('--rewrite', dest='REWRITE', action='store_true',
                         default=False,
                         help='Flag, Update image in AWS and on JACS')
@@ -940,10 +962,10 @@ if __name__ == '__main__':
         KEY.close()
     for key in sorted(COUNT):
         print("%-20s %d" % (key + ':', COUNT[key]))
-    if ANCILLARY_UPLOADS:
+    if VARIANT_UPLOADS:
         print('Uploaded variants:')
-        for key in sorted(ANCILLARY_UPLOADS):
-            print("  %-20s %d" % (key + ':', ANCILLARY_UPLOADS[key]))
+        for key in sorted(VARIANT_UPLOADS):
+            print("  %-20s %d" % (key + ':', VARIANT_UPLOADS[key]))
     print("Server calls (excluding AWS)")
     print(TRANSACTIONS)
     terminate_program(0)
