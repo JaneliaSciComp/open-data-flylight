@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '1.1.1'
+__version__ = '1.2.0'
 
 import argparse
 from datetime import datetime
@@ -52,6 +52,12 @@ KEY_LIST = list()
 
 
 def terminate_program(code):
+    ''' Terminate the program gracefully
+        Keyword arguments:
+          code: return code
+        Returns:
+          None
+    '''
     if S3CP:
         ERR.close()
         S3CP.close()
@@ -98,6 +104,7 @@ def call_responder(server, endpoint, payload='', authenticate=False):
         return req.json()
     print("Could not get response from %s: %s" % (url, req.text))
     terminate_program(-1)
+    return False
 
 
 def sql_error(err):
@@ -798,7 +805,7 @@ def handle_variants(smp, newname):
         #fname = os.path.basename(smp['filepath'])
         #url = upload_aws(AWS['s3_bucket']['cdm'], dirpath, fname, newname)
     elif UPLOAD_VARIANTS:
-            upload_flylight_ancillary_files(smp, newname)
+        upload_flylight_ancillary_files(smp, newname)
 
 
 def upload_cdms_from_file():
@@ -926,7 +933,7 @@ if __name__ == '__main__':
     STOP_TIME = datetime.now()
     print("Elapsed time: %s" %  (STOP_TIME - START_TIME))
     update_library_config()
-    if len(KEY_LIST):
+    if KEY_LIST:
         KEY_FILE = '%s_keys_%s.txt' % (ARG.LIBRARY, STAMP)
         KEY = open(KEY_FILE, 'w')
         KEY.write("%s\n" % json.dumps(KEY_LIST))
