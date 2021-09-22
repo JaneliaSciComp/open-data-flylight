@@ -21,6 +21,7 @@ from simple_term_menu import TerminalMenu
 from tqdm import tqdm
 import MySQLdb
 from PIL import Image
+import neuronbridge_lib as NB
 
 
 # Configuration
@@ -34,7 +35,6 @@ WILL_LOAD = list()
 CONN = dict()
 CURSOR = dict()
 # General use
-RELEASE_LIBRARY_BASE = "/groups/scicompsoft/informatics/data/release_libraries"
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
@@ -206,16 +206,11 @@ def get_parms():
             terminate_program(0)
         ARG.LIBRARY = liblist[chosen].replace(' ', '_')
     if not ARG.NEURONBRIDGE:
-        base_path = RELEASE_LIBRARY_BASE
-        version = [re.sub('.*/', '', path)
-                   for path in glob.glob(base_path + '/v[0-9]*')]
-        print("Select a NeuronBridge version:")
-        terminal_menu = TerminalMenu(version)
-        chosen = terminal_menu.show()
-        if chosen is None:
+        ARG.NEURONBRIDGE = NB.get_neuronbridge_version()
+        if not ARG.NEURONBRIDGE:
             LOGGER.error("No NeuronBridge version selected")
             terminate_program(0)
-        ARG.NEURONBRIDGE = version[chosen]
+        print(ARG.NEURONBRIDGE)
     if not ARG.JSON:
         print("Select a JSON file:")
         json_base = CLOAD['json_dir'] + "/%s/" % (ARG.NEURONBRIDGE)
@@ -228,15 +223,6 @@ def get_parms():
             LOGGER.error("No JSON file selected")
             terminate_program(0)
         ARG.JSON = '/'.join([json_base, jsonlist[chosen]])
-    if not ARG.MANIFOLD:
-        print("Select manifold to run on:")
-        manifold = ['dev', 'prod']
-        terminal_menu = TerminalMenu(manifold)
-        chosen = terminal_menu.show()
-        if chosen is None:
-            LOGGER.error("No manifold selected")
-            terminate_program(0)
-        ARG.MANIFOLD = manifold[chosen]
 
 
 def select_uploads():
@@ -248,7 +234,7 @@ def select_uploads():
     """
     global WILL_LOAD # pylint: disable=W0603
     quest = [inquirer.Checkbox('checklist',
-                               message='Select imate types to upload',
+                               message='Select image types to upload',
                                choices=VARIANTS, default=VARIANTS)]
     WILL_LOAD = inquirer.prompt(quest)['checklist']
 

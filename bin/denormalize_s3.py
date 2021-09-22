@@ -20,7 +20,7 @@ import colorlog
 import boto3
 from botocore.exceptions import ClientError
 import requests
-from simple_term_menu import TerminalMenu
+import neuronbridge_lib as NB
 
 __version__ = '1.1.1'
 # Configuration
@@ -63,26 +63,8 @@ def initialize_program():
     random.seed()
 
 
-def get_all_s3_objects(s3c, **base_kwargs):
-    """ Generator function to handle >1000 objects
-        Keyword arguments:
-          s3c: S# client instance
-          base_kwargs: arguments for list_objects_v2
-    """
-    continuation_token = None
-    while True:
-        list_kwargs = dict(MaxKeys=1000, **base_kwargs)
-        if continuation_token:
-            list_kwargs['ContinuationToken'] = continuation_token
-        response = s3c.list_objects_v2(**list_kwargs)
-        yield from response.get('Contents', [])
-        if not response.get('IsTruncated'):
-            break
-        continuation_token = response.get('NextContinuationToken')
-
-
 def upload_to_aws(s3r, body, object_name):
-    """ Upload a file ro AWS S3
+    """ Upload a file to AWS S3
         Keyword arguments:
           s3r: S3 resource
           body: JSON
@@ -131,34 +113,25 @@ def write_order_file(which, body, prefix):
     return order_file
 
 
-def get_parms():
+def get_parms(s3_client):
     """ Query the user for the CDM library and manifold
         Keyword arguments:
-            None
+            s3_client: S3 client
         Returns:
             None
     """
     if not ARG.LIBRARY:
-        print("Select a library:")
-        cdmlist = list()
-        for cdmlib in CDM:
-            if CDM[cdmlib]['name'] not in cdmlist:
-                cdmlist.append(CDM[cdmlib]['name'])
-        terminal_menu = TerminalMenu(cdmlist)
-        chosen = terminal_menu.show()
-        if chosen is None:
+        ARG.LIBRARY = NB.get_library(CDM)
+        if not ARG.LIBRARY:
             LOGGER.error("No library selected")
             sys.exit(0)
-        ARG.LIBRARY = cdmlist[chosen].replace(' ', '_')
-    if not ARG.MANIFOLD:
-        print("Select manifold to run on:")
-        manifold = ['dev', 'prod']
-        terminal_menu = TerminalMenu(manifold)
-        chosen = terminal_menu.show()
-        if chosen is None:
-            LOGGER.error("No manifold selected")
+        print(ARG.LIBRARY)
+    if not ARG.TEMPLATE:
+        ARG.TEMPLATE = NB.get_template(s3_client, ARG.BUCKET)
+        if not ARG.TEMPLATE:
+            LOGGER.error("No alignment template selected")
             sys.exit(0)
-        ARG.MANIFOLD = manifold[chosen]
+        print(ARG.TEMPLATE)
     for cdmlib in CDM:
         if CDM[cdmlib]['name'].replace(' ', '_') == ARG.LIBRARY:
             print("Library %s was last modified on %s on %s"
@@ -208,7 +181,7 @@ def populate_batch_dict(s3_client, prefix):
     for which in DISTRIBUTE_FILES:
         max_batch[which] = 0
         first_batch[which] = 0
-    for obj in get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix):
+    for obj in NB.get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix):
         if KEYFILE in obj['Key'] or COUNTFILE in obj['Key'] or "pngs" in obj['Key']:
             continue
         which = 'default'
@@ -230,8 +203,8 @@ def populate_batch_dict(s3_client, prefix):
     batch_size = dict()
     for which in DISTRIBUTE_FILES:
         batch_size[which] = 0
-        objs = get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix + which + "/"
-                                  + str(first_batch[which]) + "/")
+        objs = NB.get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix + which + "/"
+                                     + str(first_batch[which]) + "/")
         for obj in objs:
             batch_size[which] += 1
     batch_dict = {'count': total_objects,
@@ -249,12 +222,12 @@ def denormalize():
           None
     """
     #pylint: disable=no-member
-    get_parms()
     s3_client, s3_resource = initialize_s3()
+    get_parms(s3_client)
     prefix = '/'.join([ARG.TEMPLATE, ARG.LIBRARY]) + '/'
     print("Processing %s on %s manifold" % (ARG.LIBRARY, ARG.MANIFOLD))
     batch_dict = populate_batch_dict(s3_client, prefix)
-    if not batch_dict['count']['default']:
+    if not batch_dict['count'] or not batch_dict['count']['default']:
         LOGGER.error("%s/%s was not found in the %s bucket", ARG.TEMPLATE, ARG.LIBRARY, ARG.BUCKET)
         sys.exit(-1)
     # Write files
@@ -301,11 +274,11 @@ if __name__ == '__main__':
     PARSER.add_argument('--bucket', dest='BUCKET', action='store',
                         default='janelia-flylight-color-depth', help='AWS S3 bucket')
     PARSER.add_argument('--template', dest='TEMPLATE', action='store',
-                        default='JRC2018_Unisex_20x_HR', help='Template')
+                        help='Template')
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='Library')
     PARSER.add_argument('--manifold', dest='MANIFOLD', action='store',
-                        default='', help='S3 manifold')
+                        default='dev', help='S3 manifold')
     PARSER.add_argument('--test', dest='TEST', action='store_true',
                         default=False, help='Test mode (do not write to bucket)')
     PARSER.add_argument('--verbose', dest='VERBOSE', action='store_true',
