@@ -1,6 +1,6 @@
 ''' This program will Upload Color Depth MIPs to AWS S3.
 '''
-__version__ = '1.3.0'
+__version__ = '1.3.1'
 
 import argparse
 from datetime import datetime
@@ -34,6 +34,7 @@ WILL_LOAD = list()
 CONN = dict()
 CURSOR = dict()
 # General use
+RELEASE_LIBRARY_BASE = "/groups/scicompsoft/informatics/data/release_libraries"
 COUNT = {'Amazon S3 uploads': 0, 'Files to upload': 0, 'Samples': 0, 'No Consensus': 0,
          'No sampleRef': 0, 'No publishing name': 0, 'No driver': 0, 'Not published': 0,
          'Skipped': 0, 'Already on S3': 0, 'Already on JACS': 0, 'Bad driver': 0,
@@ -204,6 +205,17 @@ def get_parms():
             LOGGER.error("No library selected")
             terminate_program(0)
         ARG.LIBRARY = liblist[chosen].replace(' ', '_')
+    if not ARG.NEURONBRIDGE:
+        base_path = RELEASE_LIBRARY_BASE
+        version = [re.sub('.*/', '', path)
+                   for path in glob.glob(base_path + '/v[0-9]*')]
+        print("Select a NeuronBridge version:")
+        terminal_menu = TerminalMenu(version)
+        chosen = terminal_menu.show()
+        if chosen is None:
+            LOGGER.error("No NeuronBridge version selected")
+            terminate_program(0)
+    ARG.NEURONBRIDGE = version[chosen]
     if not ARG.JSON:
         print("Select a JSON file:")
         json_base = CLOAD['json_dir'] + "/%s/" % (ARG.NEURONBRIDGE)
