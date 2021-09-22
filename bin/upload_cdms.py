@@ -215,7 +215,7 @@ def get_parms():
         if chosen is None:
             LOGGER.error("No NeuronBridge version selected")
             terminate_program(0)
-    ARG.NEURONBRIDGE = version[chosen]
+        ARG.NEURONBRIDGE = version[chosen]
     if not ARG.JSON:
         print("Select a JSON file:")
         json_base = CLOAD['json_dir'] + "/%s/" % (ARG.NEURONBRIDGE)
@@ -912,7 +912,7 @@ if __name__ == '__main__':
     PARSER.add_argument('--library', dest='LIBRARY', action='store',
                         default='', help='color depth library')
     PARSER.add_argument('--neuronbridge', dest='NEURONBRIDGE', action='store',
-                        default='v2.2.0', help='NeuronBridge version')
+                        help='NeuronBridge version')
     PARSER.add_argument('--json', dest='JSON', action='store',
                         help='JSON file')
     PARSER.add_argument('--internal', dest='INTERNAL', action='store_true',
