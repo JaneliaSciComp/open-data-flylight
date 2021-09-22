@@ -209,7 +209,7 @@ def populate_batch_dict(s3_client, prefix):
         max_batch[which] = 0
         first_batch[which] = 0
     for obj in get_all_s3_objects(s3_client, Bucket=ARG.BUCKET, Prefix=prefix):
-        if KEYFILE in obj['Key'] or COUNTFILE in obj['Key']:
+        if KEYFILE in obj['Key'] or COUNTFILE in obj['Key'] or "pngs" in obj['Key']:
             continue
         which = 'default'
         LOGGER.debug(obj['Key'])
