@@ -29,6 +29,8 @@ The [*NeuronBridge*](https://neuronbridge.janelia.org/) tool, built on AWS Lambd
             * counts_denormalized.json
             * keys_denormalized.json
             * searchable_neurons
+            * OBJ (FlyEM only)
+            * SWC (FlyEM only)
     * Color_Depth_MIPs_For_Download
 
 
@@ -101,19 +103,19 @@ Examples:
 SS00724-20140623_34_F1-Split_GAL4-f-20x-brain-JRC2018_Unisex_20x_HR-CDM_2-01.tif
 SS00724-20140623_34_F1-Split_GAL4-f-20x-brain-JRC2018_Unisex_20x_HR-CDM_2-02.tif
 
-### counts_denormalized.json
+#### counts_denormalized.json
 
 A JSON file containing a count of TIFF files in the subprefixes
 
-### keys_denormalized.json
+#### keys_denormalized.json
 
 A JSON file containing a list of TIFF files in the subprefixes
 
-### KEYS
+#### KEYS
 
 This subprefix contains 100 subprefixes (0-99). Each of these subprefixes contains a duplicate of the keys_denormalized.json file
 
-### pngs
+#### pngs
 
 This subprefix contain PNG files, each one a neuron. PNG file names contain metadata as follows:
 ```
@@ -122,6 +124,18 @@ This subprefix contain PNG files, each one a neuron. PNG file names contain meta
 Examples:
 SS00724-20140623_34_F1-Split_GAL4-f-20x-brain-JRC2018_Unisex_20x_HR-CDM_2-01.png
 SS00724-20140623_34_F1-Split_GAL4-f-20x-brain-JRC2018_Unisex_20x_HR-CDM_2-02.png
+
+### OBJ
+
+Contains OBJ files for FlyEM imagery. File names contain metadata as follows:
+
+[Body ID].obj
+
+### SWC
+
+Contains SWC files for FlyEM imagery. File names contain metadata as follows:
+
+[Body ID].swc
 
 ### Color_Depth_MIPs_For_Download
 
