@@ -3,16 +3,18 @@
 Part of the [Janelia FlyLight Imagery](https://data.janelia.org/3N5DS) open data set.
 
 This bucket contains Color Depth MIPs for all the published FlyLight and [https://www.janelia.org/project-team/flyem](FlyEM) imagery, divided into libraries:
-| Library                     | # images |
-|-----------------------------|----------|
-| FlyEM_Hemibrain_v1.0        | 34717    |
-| FlyEM_Hemibrain_v1.1        | 164779   |
-| FlyLight_GEN1_GAL4          | 32932    |
-| FlyLight_Gen1_LexA          | 5033     |
-| FlyLight_Gen1_MCFO          | 606574   |
-| FlyLight_Split-GAL4_Drivers | 24686    |
-| Vienna_Gen1_GAL4            | 3588     |
-| Vienna_Gen1_LexA            | 2343     |
+| Library                      | # images |
+|------------------------------|----------|
+| FlyEM_Hemibrain_v1.0         | 34717    |
+| FlyEM_Hemibrain_v1.1         | 30894    |
+| FlyEM_Hemibrain_v1.2.1       | 30790    |
+| FlyLight_Annotator_Gen1_MCFO | 101215   |
+| FlyLight_Gen1_GAL4           | 32932    |
+| FlyLight_Gen1_LexA           | 5033     |
+| FlyLight_Gen1_MCFO           | 136367   |
+| FlyLight_Split-GAL4_Drivers  | 3045     |
+| Vienna_Gen1_GAL4             | 3588     |
+| Vienna_Gen1_LexA             | 2343     |
 
 The color depth mask search technique, published in Otsuna, et. al[^otsuna], enables rapid and scalable 2d mask search across many terabytes of 3d data. Most importantly, it can be used to search from LM to EM and vice-versa, enabling cross-modal correspondence. 
 
@@ -24,6 +26,9 @@ The [*NeuronBridge*](https://neuronbridge.janelia.org/) tool, built on AWS Lambd
     * `<alignment space>`
         * `<library name>`
             * _color depth MIP files (PNG)_
+            * counts_denormalized.json
+            * keys_denormalized.json
+            * searchable_neurons
     * Color_Depth_MIPs_For_Download
 
 
@@ -58,11 +63,65 @@ Fly EM file names contain metadata as follows:
 ```
 
 * **Body ID**: NeuPrint Body ID
-* **Status Code**: NeuPrint status code
+* **Status Code**: NeuPrint status code (optional)
 * **Alignment Space**: standard alignment space to which the MIP is registered. See [Janelia FlyLight Templates](https://open.quiltdata.com/b/janelia-flylight-templates) for more information about alignment spaces.
 
 Examples:
 * **FlyEM Hemibrain v1.0**: 1038964771-RT-JRC2018_Unisex_20x_HR-CDM.png
+* **FlyEM Hemibrain v1.2.1**: 267896359-JRC2018_Unisex_20x_HR-CDM.png
+
+### counts_denormalized.json
+
+A JSON file containing a count of PNG files in the current prefix
+
+### keys_denormalized.json
+
+A JSON file containing a list of PNG files in the current prefix
+
+### searchable_neurons
+
+This prefix is structured as follows:
+
+* searchable_neurons
+    * _partition subprefixes (1, 2, 3 ...)_
+        * _TIFF images of neurons_
+    * counts_denormalized.json
+    * keys_denormalized.json
+    * KEYS
+    * pngs
+        * _PNG images of neurons_
+
+### _partition subprefixes (1, 2, 3 ...)_
+
+These subprefixes contain up to 100 TIFF files, each one a neuron. TIFF file names contain metadata as follows:
+```
+[Publishing Name]-[Slide Code]-[Driver]-[Gender]-[Objective]-[Area/Tile]-[Alignment Space]-CDM_[Channel]-[neuron #].tif
+```
+Examples:
+SS00724-20140623_34_F1-Split_GAL4-f-20x-brain-JRC2018_Unisex_20x_HR-CDM_2-01.tif
+SS00724-20140623_34_F1-Split_GAL4-f-20x-brain-JRC2018_Unisex_20x_HR-CDM_2-02.tif
+
+### counts_denormalized.json
+
+A JSON file containing a count of TIFF files in the subprefixes
+
+### keys_denormalized.json
+
+A JSON file containing a list of TIFF files in the subprefixes
+
+### KEYS
+
+This subprefix contains 100 subprefixes (0-99). Each of these subprefixes contains a duplicate of the keys_denormalized.json file
+
+### pngs
+
+This subprefix contain PNG files, each one a neuron. PNG file names contain metadata as follows:
+```
+[Publishing Name]-[Slide Code]-[Driver]-[Gender]-[Objective]-[Area/Tile]-[Alignment Space]-CDM_[Channel]-[neuron #].png
+```
+Examples:
+SS00724-20140623_34_F1-Split_GAL4-f-20x-brain-JRC2018_Unisex_20x_HR-CDM_2-01.png
+SS00724-20140623_34_F1-Split_GAL4-f-20x-brain-JRC2018_Unisex_20x_HR-CDM_2-02.png
 
 ### Color_Depth_MIPs_For_Download
 
